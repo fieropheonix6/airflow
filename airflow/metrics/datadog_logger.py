@@ -24,8 +24,9 @@ from typing import TYPE_CHECKING
 from airflow.configuration import conf
 from airflow.metrics.protocols import Timer
 from airflow.metrics.validators import (
-    AllowListValidator,
-    BlockListValidator,
+    PatternAllowListValidator,
+    PatternBlockListValidator,
+    get_validator,
     validate_stat,
 )
 
@@ -46,9 +47,9 @@ class SafeDogStatsdLogger:
     def __init__(
         self,
         dogstatsd_client: DogStatsd,
-        metrics_validator: ListValidator = AllowListValidator(),
+        metrics_validator: ListValidator = PatternAllowListValidator(),
         metrics_tags: bool = False,
-        metric_tags_validator: ListValidator = AllowListValidator(),
+        metric_tags_validator: ListValidator = PatternAllowListValidator(),
     ) -> None:
         self.dogstatsd = dogstatsd_client
         self.metrics_validator = metrics_validator
@@ -133,7 +134,7 @@ class SafeDogStatsdLogger:
             tags_list = []
         if self.metrics_validator.test(stat):
             if isinstance(dt, datetime.timedelta):
-                dt = dt.total_seconds()
+                dt = dt.total_seconds() * 1000.0
             return self.dogstatsd.timing(metric=stat, value=dt, tags=tags_list)
         return None
 
@@ -160,25 +161,14 @@ def get_dogstatsd_logger(cls) -> SafeDogStatsdLogger:
     """Get DataDog StatsD logger."""
     from datadog import DogStatsd
 
-    metrics_validator: ListValidator
-
     dogstatsd = DogStatsd(
         host=conf.get("metrics", "statsd_host"),
         port=conf.getint("metrics", "statsd_port"),
         namespace=conf.get("metrics", "statsd_prefix"),
         constant_tags=cls.get_constant_tags(),
     )
-    if conf.get("metrics", "metrics_allow_list", fallback=None):
-        metrics_validator = AllowListValidator(conf.get("metrics", "metrics_allow_list"))
-        if conf.get("metrics", "metrics_block_list", fallback=None):
-            log.warning(
-                "Ignoring metrics_block_list as both metrics_allow_list "
-                "and metrics_block_list have been set"
-            )
-    elif conf.get("metrics", "metrics_block_list", fallback=None):
-        metrics_validator = BlockListValidator(conf.get("metrics", "metrics_block_list"))
-    else:
-        metrics_validator = AllowListValidator()
     datadog_metrics_tags = conf.getboolean("metrics", "statsd_datadog_metrics_tags", fallback=True)
-    metric_tags_validator = BlockListValidator(conf.get("metrics", "statsd_disabled_tags", fallback=None))
-    return SafeDogStatsdLogger(dogstatsd, metrics_validator, datadog_metrics_tags, metric_tags_validator)
+    metric_tags_validator = PatternBlockListValidator(
+        conf.get("metrics", "statsd_disabled_tags", fallback=None)
+    )
+    return SafeDogStatsdLogger(dogstatsd, get_validator(), datadog_metrics_tags, metric_tags_validator)

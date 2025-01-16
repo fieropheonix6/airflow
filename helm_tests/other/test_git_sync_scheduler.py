@@ -77,6 +77,7 @@ class TestGitSyncSchedulerTest:
                         "sshKeySecret": None,
                         "credentialsSecret": None,
                         "knownHosts": None,
+                        "envFrom": "- secretRef:\n    name: 'proxy-config'\n",
                     },
                     "persistence": {"enabled": True},
                 },
@@ -84,11 +85,12 @@ class TestGitSyncSchedulerTest:
             show_only=["templates/scheduler/scheduler-deployment.yaml"],
         )
 
-        assert {
+        assert jmespath.search("spec.template.spec.containers[1]", docs[0]) == {
             "name": "git-sync-test",
             "securityContext": {"runAsUser": 65533},
             "image": "test-registry/test-repo:test-tag",
             "imagePullPolicy": "Always",
+            "envFrom": [{"secretRef": {"name": "proxy-config"}}],
             "env": [
                 {"name": "GIT_SYNC_REV", "value": "HEAD"},
                 {"name": "GITSYNC_REF", "value": "test-branch"},
@@ -109,7 +111,7 @@ class TestGitSyncSchedulerTest:
             ],
             "volumeMounts": [{"mountPath": "/git", "name": "dags"}],
             "resources": {},
-        } == jmespath.search("spec.template.spec.containers[1]", docs[0])
+        }
 
     def test_validate_the_git_sync_container_spec_if_wait_specified(self):
         docs = render_chart(
@@ -137,6 +139,7 @@ class TestGitSyncSchedulerTest:
                         "sshKeySecret": None,
                         "credentialsSecret": None,
                         "knownHosts": None,
+                        "envFrom": "- secretRef:\n    name: 'proxy-config'\n",
                     },
                     "persistence": {"enabled": True},
                 },
@@ -144,11 +147,12 @@ class TestGitSyncSchedulerTest:
             show_only=["templates/scheduler/scheduler-deployment.yaml"],
         )
 
-        assert {
+        assert jmespath.search("spec.template.spec.containers[1]", docs[0]) == {
             "name": "git-sync-test",
             "securityContext": {"runAsUser": 65533},
             "image": "test-registry/test-repo:test-tag",
             "imagePullPolicy": "Always",
+            "envFrom": [{"secretRef": {"name": "proxy-config"}}],
             "env": [
                 {"name": "GIT_SYNC_REV", "value": "HEAD"},
                 {"name": "GITSYNC_REF", "value": "test-branch"},
@@ -170,7 +174,7 @@ class TestGitSyncSchedulerTest:
             ],
             "volumeMounts": [{"mountPath": "/git", "name": "dags"}],
             "resources": {},
-        } == jmespath.search("spec.template.spec.containers[1]", docs[0])
+        }
 
     def test_validate_if_ssh_params_are_added(self):
         docs = render_chart(
@@ -209,6 +213,36 @@ class TestGitSyncSchedulerTest:
         assert {
             "name": "git-sync-ssh-key",
             "secret": {"secretName": "ssh-secret", "defaultMode": 288},
+        } in jmespath.search("spec.template.spec.volumes", docs[0])
+
+    def test_validate_if_ssh_params_are_added_with_git_ssh_key(self):
+        docs = render_chart(
+            values={
+                "dags": {
+                    "gitSync": {
+                        "enabled": True,
+                        "sshKey": "dummy-ssh-key",
+                    }
+                }
+            },
+            show_only=["templates/scheduler/scheduler-deployment.yaml"],
+        )
+
+        assert {"name": "GIT_SSH_KEY_FILE", "value": "/etc/git-secret/ssh"} in jmespath.search(
+            "spec.template.spec.containers[1].env", docs[0]
+        )
+        assert {"name": "GITSYNC_SSH_KEY_FILE", "value": "/etc/git-secret/ssh"} in jmespath.search(
+            "spec.template.spec.containers[1].env", docs[0]
+        )
+        assert {"name": "GIT_SYNC_SSH", "value": "true"} in jmespath.search(
+            "spec.template.spec.containers[1].env", docs[0]
+        )
+        assert {"name": "GITSYNC_SSH", "value": "true"} in jmespath.search(
+            "spec.template.spec.containers[1].env", docs[0]
+        )
+        assert {
+            "name": "git-sync-ssh-key",
+            "secret": {"secretName": "release-name-ssh-secret", "defaultMode": 288},
         } in jmespath.search("spec.template.spec.volumes", docs[0])
 
     def test_validate_sshkeysecret_not_added_when_persistence_is_enabled(self):
@@ -359,8 +393,8 @@ class TestGitSyncSchedulerTest:
             },
             show_only=["templates/scheduler/scheduler-deployment.yaml"],
         )
-        assert "128Mi" == jmespath.search("spec.template.spec.containers[1].resources.limits.memory", docs[0])
-        assert "169Mi" == jmespath.search(
-            "spec.template.spec.containers[1].resources.requests.memory", docs[0]
+        assert jmespath.search("spec.template.spec.containers[1].resources.limits.memory", docs[0]) == "128Mi"
+        assert (
+            jmespath.search("spec.template.spec.containers[1].resources.requests.memory", docs[0]) == "169Mi"
         )
-        assert "300m" == jmespath.search("spec.template.spec.containers[1].resources.requests.cpu", docs[0])
+        assert jmespath.search("spec.template.spec.containers[1].resources.requests.cpu", docs[0]) == "300m"

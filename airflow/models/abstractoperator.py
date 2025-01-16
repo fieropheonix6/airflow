@@ -19,45 +19,47 @@ from __future__ import annotations
 
 import datetime
 import inspect
+from collections.abc import Iterable, Iterator, Sequence
 from functools import cached_property
-from typing import TYPE_CHECKING, Any, Callable, ClassVar, Collection, Iterable, Iterator, Sequence
+from typing import TYPE_CHECKING, Any, Callable
 
+import methodtools
 from sqlalchemy import select
 
-from airflow.compat.functools import cache
 from airflow.configuration import conf
 from airflow.exceptions import AirflowException
 from airflow.models.expandinput import NotFullyPopulated
-from airflow.models.taskmixin import DAGNode, DependencyMixin
-from airflow.template.templater import Templater
-from airflow.utils.context import Context
+from airflow.sdk.definitions._internal.abstractoperator import AbstractOperator as TaskSDKAbstractOperator
+from airflow.sdk.definitions.context import Context
 from airflow.utils.db import exists_query
-from airflow.utils.log.secrets_masker import redact
+from airflow.utils.log.logging_mixin import LoggingMixin
 from airflow.utils.setup_teardown import SetupTeardownContext
 from airflow.utils.sqlalchemy import with_row_locks
 from airflow.utils.state import State, TaskInstanceState
 from airflow.utils.task_group import MappedTaskGroup
 from airflow.utils.trigger_rule import TriggerRule
-from airflow.utils.types import NOTSET, ArgNotSet
-from airflow.utils.weight_rule import WeightRule
-
-TaskStateChangeCallback = Callable[[Context], None]
+from airflow.utils.weight_rule import WeightRule, db_safe_priority
 
 if TYPE_CHECKING:
-    import jinja2  # Slow import.
+    import jinja2  # Slow imports.
     from sqlalchemy.orm import Session
 
-    from airflow.models.baseoperator import BaseOperator
     from airflow.models.baseoperatorlink import BaseOperatorLink
-    from airflow.models.dag import DAG
+    from airflow.models.dag import DAG as SchedulerDAG
     from airflow.models.mappedoperator import MappedOperator
-    from airflow.models.operator import Operator
     from airflow.models.taskinstance import TaskInstance
+    from airflow.sdk.definitions._internal.node import DAGNode
+    from airflow.sdk.definitions.baseoperator import BaseOperator
+    from airflow.task.priority_strategy import PriorityWeightStrategy
+    from airflow.triggers.base import StartTriggerArgs
     from airflow.utils.task_group import TaskGroup
+
+TaskStateChangeCallback = Callable[[Context], None]
 
 DEFAULT_OWNER: str = conf.get_mandatory_value("operators", "default_owner")
 DEFAULT_POOL_SLOTS: int = 1
 DEFAULT_PRIORITY_WEIGHT: int = 1
+DEFAULT_EXECUTOR: str | None = None
 DEFAULT_QUEUE: str = conf.get_mandatory_value("operators", "default_queue")
 DEFAULT_IGNORE_FIRST_DEPENDS_ON_PAST: bool = conf.getboolean(
     "scheduler", "ignore_first_depends_on_past_by_default"
@@ -82,8 +84,9 @@ class NotMapped(Exception):
     """Raise if a task is neither mapped nor has any parent mapped groups."""
 
 
-class AbstractOperator(Templater, DAGNode):
-    """Common implementation for operators, including unmapped and mapped.
+class AbstractOperator(LoggingMixin, TaskSDKAbstractOperator):
+    """
+    Common implementation for operators, including unmapped and mapped.
 
     This base class is more about sharing implementations, not defining a common
     interface. Unfortunately it's difficult to use this as the common base class
@@ -95,84 +98,8 @@ class AbstractOperator(Templater, DAGNode):
     :meta private:
     """
 
-    operator_class: type[BaseOperator] | dict[str, Any]
-
-    weight_rule: str
-    priority_weight: int
-
-    # Defines the operator level extra links.
-    operator_extra_links: Collection[BaseOperatorLink]
-
-    owner: str
-    task_id: str
-
-    outlets: list
-    inlets: list
     trigger_rule: TriggerRule
-
-    _on_failure_fail_dagrun = False
-
-    HIDE_ATTRS_FROM_UI: ClassVar[frozenset[str]] = frozenset(
-        (
-            "log",
-            "dag",  # We show dag_id, don't need to show this too
-            "node_id",  # Duplicates task_id
-            "task_group",  # Doesn't have a useful repr, no point showing in UI
-            "inherits_from_empty_operator",  # impl detail
-            # For compatibility with TG, for operators these are just the current task, no point showing
-            "roots",
-            "leaves",
-            # These lists are already shown via *_task_ids
-            "upstream_list",
-            "downstream_list",
-            # Not useful, implementation detail, already shown elsewhere
-            "global_operator_extra_link_dict",
-            "operator_extra_link_dict",
-        )
-    )
-
-    def get_dag(self) -> DAG | None:
-        raise NotImplementedError()
-
-    @property
-    def task_type(self) -> str:
-        raise NotImplementedError()
-
-    @property
-    def operator_name(self) -> str:
-        raise NotImplementedError()
-
-    @property
-    def inherits_from_empty_operator(self) -> bool:
-        raise NotImplementedError()
-
-    @property
-    def dag_id(self) -> str:
-        """Returns dag id if it has one or an adhoc + owner."""
-        dag = self.get_dag()
-        if dag:
-            return dag.dag_id
-        return f"adhoc_{self.owner}"
-
-    @property
-    def node_id(self) -> str:
-        return self.task_id
-
-    @property
-    def is_setup(self) -> bool:
-        raise NotImplementedError()
-
-    @is_setup.setter
-    def is_setup(self, value: bool) -> None:
-        raise NotImplementedError()
-
-    @property
-    def is_teardown(self) -> bool:
-        raise NotImplementedError()
-
-    @is_teardown.setter
-    def is_teardown(self, value: bool) -> None:
-        raise NotImplementedError()
+    weight_rule: PriorityWeightStrategy
 
     @property
     def on_failure_fail_dagrun(self):
@@ -197,115 +124,9 @@ class AbstractOperator(Templater, DAGNode):
             )
         self._on_failure_fail_dagrun = value
 
-    def as_setup(self):
-        self.is_setup = True
-        return self
-
-    def as_teardown(
-        self,
-        *,
-        setups: BaseOperator | Iterable[BaseOperator] | ArgNotSet = NOTSET,
-        on_failure_fail_dagrun=NOTSET,
-    ):
-        self.is_teardown = True
-        self.trigger_rule = TriggerRule.ALL_DONE_SETUP_SUCCESS
-        if on_failure_fail_dagrun is not NOTSET:
-            self.on_failure_fail_dagrun = on_failure_fail_dagrun
-        if not isinstance(setups, ArgNotSet):
-            setups = [setups] if isinstance(setups, DependencyMixin) else setups
-            for s in setups:
-                s.is_setup = True
-                s >> self
-        return self
-
-    def get_direct_relative_ids(self, upstream: bool = False) -> set[str]:
-        """Get direct relative IDs to the current task, upstream or downstream."""
-        if upstream:
-            return self.upstream_task_ids
-        return self.downstream_task_ids
-
-    def get_flat_relative_ids(self, *, upstream: bool = False) -> set[str]:
-        """Get a flat set of relative IDs, upstream or downstream.
-
-        Will recurse each relative found in the direction specified.
-
-        :param upstream: Whether to look for upstream or downstream relatives.
-        """
-        dag = self.get_dag()
-        if not dag:
-            return set()
-
-        relatives: set[str] = set()
-
-        # This is intentionally implemented as a loop, instead of calling
-        # get_direct_relative_ids() recursively, since Python has significant
-        # limitation on stack level, and a recursive implementation can blow up
-        # if a DAG contains very long routes.
-        task_ids_to_trace = self.get_direct_relative_ids(upstream)
-        while task_ids_to_trace:
-            task_ids_to_trace_next: set[str] = set()
-            for task_id in task_ids_to_trace:
-                if task_id in relatives:
-                    continue
-                task_ids_to_trace_next.update(dag.task_dict[task_id].get_direct_relative_ids(upstream))
-                relatives.add(task_id)
-            task_ids_to_trace = task_ids_to_trace_next
-
-        return relatives
-
-    def get_flat_relatives(self, upstream: bool = False) -> Collection[Operator]:
-        """Get a flat list of relatives, either upstream or downstream."""
-        dag = self.get_dag()
-        if not dag:
-            return set()
-        return [dag.task_dict[task_id] for task_id in self.get_flat_relative_ids(upstream=upstream)]
-
-    def get_upstreams_follow_setups(self) -> Iterable[Operator]:
-        """All upstreams and, for each upstream setup, its respective teardowns."""
-        for task in self.get_flat_relatives(upstream=True):
-            yield task
-            if task.is_setup:
-                for t in task.downstream_list:
-                    if t.is_teardown and t != self:
-                        yield t
-
-    def get_upstreams_only_setups_and_teardowns(self) -> Iterable[Operator]:
-        """
-        Only *relevant* upstream setups and their teardowns.
-
-        This method is meant to be used when we are clearing the task (non-upstream) and we need
-        to add in the *relevant* setups and their teardowns.
-
-        Relevant in this case means, the setup has a teardown that is downstream of ``self``,
-        or the setup has no teardowns.
-        """
-        downstream_teardown_ids = {
-            x.task_id for x in self.get_flat_relatives(upstream=False) if x.is_teardown
-        }
-        for task in self.get_flat_relatives(upstream=True):
-            if not task.is_setup:
-                continue
-            has_no_teardowns = not any(True for x in task.downstream_list if x.is_teardown)
-            # if task has no teardowns or has teardowns downstream of self
-            if has_no_teardowns or task.downstream_task_ids.intersection(downstream_teardown_ids):
-                yield task
-                for t in task.downstream_list:
-                    if t.is_teardown and t != self:
-                        yield t
-
-    def get_upstreams_only_setups(self) -> Iterable[Operator]:
-        """
-        Return relevant upstream setups.
-
-        This method is meant to be used when we are checking task dependencies where we need
-        to wait for all the upstream setups to complete before we can run the task.
-        """
-        for task in self.get_upstreams_only_setups_and_teardowns():
-            if task.is_setup:
-                yield task
-
     def _iter_all_mapped_downstreams(self) -> Iterator[MappedOperator | MappedTaskGroup]:
-        """Return mapped nodes that are direct dependencies of the current task.
+        """
+        Return mapped nodes that are direct dependencies of the current task.
 
         For now, this walks the entire DAG to find mapped nodes that has this
         current task as an upstream. We cannot use ``downstream_list`` since it
@@ -323,7 +144,8 @@ class AbstractOperator(Templater, DAGNode):
         from airflow.utils.task_group import TaskGroup
 
         def _walk_group(group: TaskGroup) -> Iterable[tuple[str, DAGNode]]:
-            """Recursively walk children in a task group.
+            """
+            Recursively walk children in a task group.
 
             This yields all direct children (including both tasks and task
             groups), and all children of any task groups.
@@ -345,7 +167,8 @@ class AbstractOperator(Templater, DAGNode):
                 yield child
 
     def iter_mapped_dependants(self) -> Iterator[MappedOperator | MappedTaskGroup]:
-        """Return mapped nodes that depend on the current task the expansion.
+        """
+        Return mapped nodes that depend on the current task the expansion.
 
         For now, this walks the entire DAG to find mapped nodes that has this
         current task as an upstream. We cannot use ``downstream_list`` since it
@@ -359,7 +182,8 @@ class AbstractOperator(Templater, DAGNode):
         )
 
     def iter_mapped_task_groups(self) -> Iterator[MappedTaskGroup]:
-        """Return mapped task groups this task belongs to.
+        """
+        Return mapped task groups this task belongs to.
 
         Groups are returned from the innermost to the outmost.
 
@@ -367,20 +191,58 @@ class AbstractOperator(Templater, DAGNode):
         """
         if (group := self.task_group) is None:
             return
-        yield from group.iter_mapped_task_groups()
+        # TODO: Task-SDK: this type ignore shouldn't be necessary, revisit once mapping support is fully in the
+        # SDK
+        yield from group.iter_mapped_task_groups()  # type: ignore[misc]
 
     def get_closest_mapped_task_group(self) -> MappedTaskGroup | None:
-        """Get the mapped task group "closest" to this task in the DAG.
+        """
+        Get the mapped task group "closest" to this task in the DAG.
 
         :meta private:
         """
         return next(self.iter_mapped_task_groups(), None)
 
+    def get_needs_expansion(self) -> bool:
+        """
+        Return true if the task is MappedOperator or is in a mapped task group.
+
+        :meta private:
+        """
+        if self._needs_expansion is None:
+            if self.get_closest_mapped_task_group() is not None:
+                self._needs_expansion = True
+            else:
+                self._needs_expansion = False
+        return self._needs_expansion
+
     def unmap(self, resolve: None | dict[str, Any] | tuple[Context, Session]) -> BaseOperator:
-        """Get the "normal" operator from current abstract operator.
+        """
+        Get the "normal" operator from current abstract operator.
 
         MappedOperator uses this to unmap itself based on the map index. A non-
         mapped operator (i.e. BaseOperator subclass) simply returns itself.
+
+        :meta private:
+        """
+        raise NotImplementedError()
+
+    def expand_start_from_trigger(self, *, context: Context, session: Session) -> bool:
+        """
+        Get the start_from_trigger value of the current abstract operator.
+
+        MappedOperator uses this to unmap start_from_trigger to decide whether to start the task
+        execution directly from triggerer.
+
+        :meta private:
+        """
+        raise NotImplementedError()
+
+    def expand_start_trigger_args(self, *, context: Context, session: Session) -> StartTriggerArgs | None:
+        """
+        Get the start_trigger_args value of the current abstract operator.
+
+        MappedOperator uses this to unmap start_trigger_args to decide how to start a task from triggerer.
 
         :meta private:
         """
@@ -397,20 +259,30 @@ class AbstractOperator(Templater, DAGNode):
         - WeightRule.DOWNSTREAM - adds priority weight of all downstream tasks
         - WeightRule.UPSTREAM - adds priority weight of all upstream tasks
         """
-        if self.weight_rule == WeightRule.ABSOLUTE:
-            return self.priority_weight
-        elif self.weight_rule == WeightRule.DOWNSTREAM:
+        # TODO: This should live in the WeightStragies themselves, not in here
+        from airflow.task.priority_strategy import (
+            _AbsolutePriorityWeightStrategy,
+            _DownstreamPriorityWeightStrategy,
+            _UpstreamPriorityWeightStrategy,
+        )
+
+        if isinstance(self.weight_rule, _AbsolutePriorityWeightStrategy):
+            return db_safe_priority(self.priority_weight)
+        elif isinstance(self.weight_rule, _DownstreamPriorityWeightStrategy):
             upstream = False
-        elif self.weight_rule == WeightRule.UPSTREAM:
+        elif isinstance(self.weight_rule, _UpstreamPriorityWeightStrategy):
             upstream = True
         else:
             upstream = False
         dag = self.get_dag()
         if dag is None:
-            return self.priority_weight
-        return self.priority_weight + sum(
-            dag.task_dict[task_id].priority_weight
-            for task_id in self.get_flat_relative_ids(upstream=upstream)
+            return db_safe_priority(self.priority_weight)
+        return db_safe_priority(
+            self.priority_weight
+            + sum(
+                dag.task_dict[task_id].priority_weight
+                for task_id in self.get_flat_relative_ids(upstream=upstream)
+            )
         )
 
     @cached_property
@@ -447,7 +319,8 @@ class AbstractOperator(Templater, DAGNode):
         return sorted(set(self.operator_extra_link_dict).union(self.global_operator_extra_link_dict))
 
     def get_extra_links(self, ti: TaskInstance, link_name: str) -> str | None:
-        """For an operator, gets the URLs that the ``extra_links`` entry points to.
+        """
+        For an operator, gets the URLs that the ``extra_links`` entry points to.
 
         :meta private:
 
@@ -470,7 +343,7 @@ class AbstractOperator(Templater, DAGNode):
             return link.get_link(self.unmap(None), ti.dag_run.logical_date)  # type: ignore[misc]
         return link.get_link(self.unmap(None), ti_key=ti.key)
 
-    @cache
+    @methodtools.lru_cache(maxsize=None)
     def get_parse_time_mapped_ti_count(self) -> int:
         """
         Return the number of mapped task instances that can be created on DAG run creation.
@@ -508,7 +381,8 @@ class AbstractOperator(Templater, DAGNode):
         return group.get_mapped_ti_count(run_id, session=session)
 
     def expand_mapped_task(self, run_id: str, *, session: Session) -> tuple[Sequence[TaskInstance], int]:
-        """Create the mapped task instances for mapped task.
+        """
+        Create the mapped task instances for mapped task.
 
         :raise NotMapped: If this task does not need expansion.
         :return: The newly created mapped task instances (if any) in ascending
@@ -516,9 +390,9 @@ class AbstractOperator(Templater, DAGNode):
         """
         from sqlalchemy import func, or_
 
-        from airflow.models.baseoperator import BaseOperator
         from airflow.models.mappedoperator import MappedOperator
         from airflow.models.taskinstance import TaskInstance
+        from airflow.sdk.definitions.baseoperator import BaseOperator
         from airflow.settings import task_instance_mutation_hook
 
         if not isinstance(self, (BaseOperator, MappedOperator)):
@@ -553,6 +427,9 @@ class AbstractOperator(Templater, DAGNode):
         all_expanded_tis: list[TaskInstance] = []
 
         if unmapped_ti:
+            if TYPE_CHECKING:
+                assert self.dag is None or isinstance(self.dag, SchedulerDAG)
+
             # The unmapped task instance still exists and is unfinished, i.e. we
             # haven't tried to run it before.
             if total_length is None:
@@ -583,6 +460,8 @@ class AbstractOperator(Templater, DAGNode):
                     unmapped_ti.map_index = 0
                     self.log.debug("Updated in place to become %s", unmapped_ti)
                     all_expanded_tis.append(unmapped_ti)
+                    # execute hook for task instance map index 0
+                    task_instance_mutation_hook(unmapped_ti)
                     session.flush()
                 else:
                     self.log.debug("Deleting the original task instance: %s", unmapped_ti)
@@ -636,7 +515,8 @@ class AbstractOperator(Templater, DAGNode):
         context: Context,
         jinja_env: jinja2.Environment | None = None,
     ) -> None:
-        """Template all attributes listed in *self.template_fields*.
+        """
+        Template all attributes listed in *self.template_fields*.
 
         If the operator is mapped, this should return the unmapped, fully
         rendered, and map-expanded operator. The mapped operator should not be
@@ -646,69 +526,6 @@ class AbstractOperator(Templater, DAGNode):
         If the operator is not mapped, this should modify the operator in-place.
         """
         raise NotImplementedError()
-
-    def _render(self, template, context, dag: DAG | None = None):
-        if dag is None:
-            dag = self.get_dag()
-        return super()._render(template, context, dag=dag)
-
-    def get_template_env(self, dag: DAG | None = None) -> jinja2.Environment:
-        """Get the template environment for rendering templates."""
-        if dag is None:
-            dag = self.get_dag()
-        return super().get_template_env(dag=dag)
-
-    def _do_render_template_fields(
-        self,
-        parent: Any,
-        template_fields: Iterable[str],
-        context: Context,
-        jinja_env: jinja2.Environment,
-        seen_oids: set[int],
-    ) -> None:
-        """Override the base to use custom error logging."""
-        for attr_name in template_fields:
-            try:
-                value = getattr(parent, attr_name)
-            except AttributeError:
-                raise AttributeError(
-                    f"{attr_name!r} is configured as a template field "
-                    f"but {parent.task_type} does not have this attribute."
-                )
-            try:
-                if not value:
-                    continue
-            except Exception:
-                # This may happen if the templated field points to a class which does not support `__bool__`,
-                # such as Pandas DataFrames:
-                # https://github.com/pandas-dev/pandas/blob/9135c3aaf12d26f857fcc787a5b64d521c51e379/pandas/core/generic.py#L1465
-                self.log.info(
-                    "Unable to check if the value of type '%s' is False for task '%s', field '%s'.",
-                    type(value).__name__,
-                    self.task_id,
-                    attr_name,
-                )
-                # We may still want to render custom classes which do not support __bool__
-                pass
-
-            try:
-                rendered_content = self.render_template(
-                    value,
-                    context,
-                    jinja_env,
-                    seen_oids,
-                )
-            except Exception:
-                value_masked = redact(name=attr_name, value=value)
-                self.log.exception(
-                    "Exception rendering Jinja template for task '%s', field '%s'. Template: %r",
-                    self.task_id,
-                    attr_name,
-                    value_masked,
-                )
-                raise
-            else:
-                setattr(parent, attr_name, rendered_content)
 
     def __enter__(self):
         if not self.is_setup and not self.is_teardown:

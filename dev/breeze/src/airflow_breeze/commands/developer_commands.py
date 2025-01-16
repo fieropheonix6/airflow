@@ -22,9 +22,9 @@ import shlex
 import shutil
 import sys
 import threading
+from collections.abc import Iterable
 from signal import SIGTERM
 from time import sleep
-from typing import Iterable
 
 import click
 
@@ -33,34 +33,38 @@ from airflow_breeze.commands.ci_image_commands import rebuild_or_pull_ci_image_i
 from airflow_breeze.commands.common_options import (
     argument_doc_packages,
     option_airflow_extras,
+    option_all_integration,
     option_answer,
     option_backend,
     option_builder,
-    option_database_isolation,
+    option_clean_airflow_installation,
     option_db_reset,
     option_docker_host,
     option_downgrade_pendulum,
     option_downgrade_sqlalchemy,
     option_dry_run,
+    option_excluded_providers,
     option_forward_credentials,
     option_github_repository,
-    option_image_tag_for_running,
     option_include_not_ready_providers,
     option_include_removed_providers,
     option_installation_package_format,
-    option_integration,
+    option_keep_env_variables,
     option_max_time,
     option_mount_sources,
     option_mysql_version,
+    option_no_db_cleanup,
+    option_platform_single,
     option_postgres_version,
     option_project_name,
-    option_pydantic,
     option_python,
     option_run_db_tests_only,
     option_skip_db_tests,
     option_standalone_dag_processor,
     option_upgrade_boto,
     option_use_airflow_version,
+    option_use_uv,
+    option_uv_http_timeout,
     option_verbose,
 )
 from airflow_breeze.commands.common_package_installation_options import (
@@ -76,15 +80,18 @@ from airflow_breeze.commands.common_package_installation_options import (
     option_use_packages_from_dist,
 )
 from airflow_breeze.commands.main_command import main
+from airflow_breeze.commands.testing_commands import (
+    option_force_lowest_dependencies,
+)
 from airflow_breeze.global_constants import (
     ALLOWED_CELERY_BROKERS,
+    ALLOWED_CELERY_EXECUTORS,
     ALLOWED_EXECUTORS,
     ALLOWED_TTY,
+    CELERY_INTEGRATION,
     DEFAULT_ALLOWED_EXECUTOR,
     DEFAULT_CELERY_BROKER,
     DEFAULT_PYTHON_MAJOR_MINOR_VERSION,
-    DOCKER_DEFAULT_PLATFORM,
-    SINGLE_PLATFORMS,
     START_AIRFLOW_ALLOWED_EXECUTORS,
     START_AIRFLOW_DEFAULT_ALLOWED_EXECUTOR,
 )
@@ -108,10 +115,11 @@ from airflow_breeze.utils.path_utils import (
     AIRFLOW_SOURCES_ROOT,
     cleanup_python_generated_files,
 )
-from airflow_breeze.utils.recording import generating_command_images
+from airflow_breeze.utils.platforms import get_normalized_platform
 from airflow_breeze.utils.run_utils import (
     assert_pre_commit_installed,
     run_command,
+    run_compile_ui_assets,
     run_compile_www_assets,
 )
 from airflow_breeze.utils.shared_options import get_dry_run, get_verbose, set_forced_answer
@@ -183,13 +191,6 @@ option_include_mypy_volume = click.option(
     is_flag=True,
     envvar="INCLUDE_MYPY_VOLUME",
 )
-option_platform_single = click.option(
-    "--platform",
-    help="Platform for Airflow image.",
-    default=DOCKER_DEFAULT_PLATFORM if not generating_command_images() else SINGLE_PLATFORMS[0],
-    envvar="PLATFORM",
-    type=BetterChoice(SINGLE_PLATFORMS),
-)
 option_restart = click.option(
     "--restart",
     "--remove-orphans",
@@ -216,6 +217,30 @@ option_warn_image_upgrade_needed = click.option(
     envvar="WARN_IMAGE_UPGRADE_NEEDED",
 )
 
+option_install_airflow_with_constraints_default_true = click.option(
+    "--install-airflow-with-constraints/--no-install-airflow-with-constraints",
+    is_flag=True,
+    default=True,
+    show_default=True,
+    envvar="INSTALL_AIRFLOW_WITH_CONSTRAINTS",
+    help="Install airflow in a separate step, with constraints determined from package or airflow version.",
+)
+
+option_install_airflow_python_client = click.option(
+    "--install-airflow-python-client",
+    is_flag=True,
+    help="Install airflow python client packages (--package-format determines type) from 'dist' folder "
+    "when entering breeze.",
+    envvar="INSTALL_AIRFLOW_PYTHON_CLIENT",
+)
+
+option_start_webserver_with_examples = click.option(
+    "--start-webserver-with-examples",
+    is_flag=True,
+    help="Start minimal airflow webserver with examples (for testing purposes) when entering breeze.",
+    envvar="START_WEBSERVER_WITH_EXAMPLES",
+)
+
 
 @main.command()
 @click.argument("extra-args", nargs=-1, type=click.UNPROCESSED)
@@ -235,6 +260,8 @@ option_warn_image_upgrade_needed = click.option(
     is_flag=True,
     envvar="VERBOSE_COMMANDS",
 )
+@option_install_airflow_python_client
+@option_start_webserver_with_examples
 @option_airflow_constraints_location
 @option_airflow_constraints_mode_ci
 @option_airflow_constraints_reference
@@ -245,25 +272,28 @@ option_warn_image_upgrade_needed = click.option(
 @option_builder
 @option_celery_broker
 @option_celery_flower
-@option_database_isolation
+@option_clean_airflow_installation
 @option_db_reset
 @option_docker_host
 @option_downgrade_sqlalchemy
 @option_downgrade_pendulum
 @option_dry_run
 @option_executor_shell
+@option_excluded_providers
 @option_force_build
+@option_force_lowest_dependencies
 @option_forward_credentials
 @option_github_repository
-@option_image_tag_for_running
 @option_include_mypy_volume
+@option_install_airflow_with_constraints_default_true
 @option_install_selected_providers
 @option_installation_package_format
-@option_integration
+@option_all_integration
+@option_keep_env_variables
 @option_max_time
 @option_mount_sources
 @option_mysql_version
-@option_pydantic
+@option_no_db_cleanup
 @option_platform_single
 @option_postgres_version
 @option_project_name
@@ -282,6 +312,8 @@ option_warn_image_upgrade_needed = click.option(
 @option_upgrade_boto
 @option_use_airflow_version
 @option_use_packages_from_dist
+@option_use_uv
+@option_uv_http_timeout
 @option_verbose
 def shell(
     airflow_constraints_location: str,
@@ -293,23 +325,28 @@ def shell(
     builder: str,
     celery_broker: str,
     celery_flower: bool,
-    database_isolation: bool,
+    clean_airflow_installation: bool,
     db_reset: bool,
     downgrade_sqlalchemy: bool,
     downgrade_pendulum: bool,
     docker_host: str | None,
     executor: str,
     extra_args: tuple,
+    excluded_providers: str,
     force_build: bool,
+    force_lowest_dependencies: bool,
     forward_credentials: bool,
     github_repository: str,
-    image_tag: str | None,
     include_mypy_volume: bool,
     install_selected_providers: str,
+    install_airflow_with_constraints: bool,
+    install_airflow_python_client: bool,
     integration: tuple[str, ...],
+    keep_env_variables: bool,
     max_time: int | None,
     mount_sources: str,
     mysql_version: str,
+    no_db_cleanup: bool,
     package_format: str,
     platform: str | None,
     postgres_version: str,
@@ -318,7 +355,6 @@ def shell(
     providers_constraints_mode: str,
     providers_constraints_reference: str,
     providers_skip_constraints: bool,
-    pydantic: str,
     python: str,
     quiet: bool,
     restart: bool,
@@ -327,10 +363,13 @@ def shell(
     skip_db_tests: bool,
     skip_image_upgrade_check: bool,
     standalone_dag_processor: bool,
+    start_webserver_with_examples: bool,
     tty: str,
     upgrade_boto: bool,
     use_airflow_version: str | None,
     use_packages_from_dist: bool,
+    use_uv: bool,
+    uv_http_timeout: int,
     verbose_commands: bool,
     warn_image_upgrade_needed: bool,
 ):
@@ -344,6 +383,7 @@ def shell(
     airflow_constraints_reference = _determine_constraint_branch_used(
         airflow_constraints_reference, use_airflow_version
     )
+    platform = get_normalized_platform(platform)
     shell_params = ShellParams(
         airflow_constraints_location=airflow_constraints_location,
         airflow_constraints_mode=airflow_constraints_mode,
@@ -354,23 +394,27 @@ def shell(
         builder=builder,
         celery_broker=celery_broker,
         celery_flower=celery_flower,
-        database_isolation=database_isolation,
+        clean_airflow_installation=clean_airflow_installation,
         db_reset=db_reset,
         downgrade_sqlalchemy=downgrade_sqlalchemy,
         downgrade_pendulum=downgrade_pendulum,
         docker_host=docker_host,
+        excluded_providers=excluded_providers,
         executor=executor,
         extra_args=extra_args if not max_time else ["exit"],
         force_build=force_build,
+        force_lowest_dependencies=force_lowest_dependencies,
         forward_credentials=forward_credentials,
         github_repository=github_repository,
-        image_tag=image_tag,
         include_mypy_volume=include_mypy_volume,
+        install_airflow_with_constraints=install_airflow_with_constraints,
+        install_airflow_python_client=install_airflow_python_client,
         install_selected_providers=install_selected_providers,
-        install_airflow_with_constraints=True,
         integration=integration,
+        keep_env_variables=keep_env_variables,
         mount_sources=mount_sources,
         mysql_version=mysql_version,
+        no_db_cleanup=no_db_cleanup,
         package_format=package_format,
         platform=platform,
         postgres_version=postgres_version,
@@ -379,20 +423,22 @@ def shell(
         providers_constraints_mode=providers_constraints_mode,
         providers_constraints_reference=providers_constraints_reference,
         providers_skip_constraints=providers_skip_constraints,
-        pydantic=pydantic,
         python=python,
         quiet=quiet,
+        restart=restart,
         run_db_tests_only=run_db_tests_only,
         skip_db_tests=skip_db_tests,
         skip_image_upgrade_check=skip_image_upgrade_check,
         skip_environment_initialization=skip_environment_initialization,
         standalone_dag_processor=standalone_dag_processor,
+        start_webserver_with_examples=start_webserver_with_examples,
         tty=tty,
         upgrade_boto=upgrade_boto,
         use_airflow_version=use_airflow_version,
         use_packages_from_dist=use_packages_from_dist,
+        use_uv=use_uv,
+        uv_http_timeout=uv_http_timeout,
         verbose_commands=verbose_commands,
-        restart=restart,
         warn_image_upgrade_needed=warn_image_upgrade_needed,
     )
     rebuild_or_pull_ci_image_if_needed(command_params=shell_params)
@@ -420,9 +466,8 @@ option_load_default_connection = click.option(
 option_executor_start_airflow = click.option(
     "--executor",
     type=click.Choice(START_AIRFLOW_ALLOWED_EXECUTORS, case_sensitive=False),
-    help="Specify the executor to use with start-airflow command.",
-    default=START_AIRFLOW_DEFAULT_ALLOWED_EXECUTOR,
-    show_default=True,
+    help="Specify the executor to use with start-airflow (defaults to LocalExecutor "
+    "or CeleryExecutor depending on the integration used).",
 )
 
 
@@ -448,9 +493,9 @@ option_executor_start_airflow = click.option(
 @option_answer
 @option_backend
 @option_builder
+@option_clean_airflow_installation
 @option_celery_broker
 @option_celery_flower
-@option_database_isolation
 @option_db_reset
 @option_docker_host
 @option_dry_run
@@ -458,10 +503,9 @@ option_executor_start_airflow = click.option(
 @option_force_build
 @option_forward_credentials
 @option_github_repository
-@option_image_tag_for_running
 @option_installation_package_format
 @option_install_selected_providers
-@option_integration
+@option_all_integration
 @option_load_default_connection
 @option_load_example_dags
 @option_mount_sources
@@ -476,6 +520,8 @@ option_executor_start_airflow = click.option(
 @option_python
 @option_restart
 @option_standalone_dag_processor
+@option_use_uv
+@option_uv_http_timeout
 @option_use_airflow_version
 @option_use_packages_from_dist
 @option_verbose
@@ -489,16 +535,15 @@ def start_airflow(
     builder: str,
     celery_broker: str,
     celery_flower: bool,
-    database_isolation: bool,
+    clean_airflow_installation: bool,
     db_reset: bool,
     dev_mode: bool,
     docker_host: str | None,
-    executor: str,
+    executor: str | None,
     extra_args: tuple,
     force_build: bool,
     forward_credentials: bool,
     github_repository: str,
-    image_tag: str | None,
     integration: tuple[str, ...],
     install_selected_providers: str,
     load_default_connections: bool,
@@ -519,6 +564,8 @@ def start_airflow(
     standalone_dag_processor: bool,
     use_airflow_version: str | None,
     use_packages_from_dist: bool,
+    use_uv: bool,
+    uv_http_timeout: int,
 ):
     """
     Enter breeze environment and starts all Airflow components in the tmux session.
@@ -530,11 +577,22 @@ def start_airflow(
         )
         skip_assets_compilation = True
     if use_airflow_version is None and not skip_assets_compilation:
-        run_compile_www_assets(dev=dev_mode, run_in_background=True, force_clean=False)
+        # Now with the /ui project, lets only do a static build of /www and focus on the /ui
+        run_compile_www_assets(dev=False, run_in_background=False, force_clean=False)
+        run_compile_ui_assets(dev=dev_mode, run_in_background=True, force_clean=False)
     airflow_constraints_reference = _determine_constraint_branch_used(
         airflow_constraints_reference, use_airflow_version
     )
 
+    if not executor:
+        if CELERY_INTEGRATION in integration:
+            # Default to a celery executor if that's the integration being used
+            executor = ALLOWED_CELERY_EXECUTORS[0]
+        else:
+            # Otherwise default to LocalExecutor
+            executor = START_AIRFLOW_DEFAULT_ALLOWED_EXECUTOR
+
+    platform = get_normalized_platform(platform)
     shell_params = ShellParams(
         airflow_constraints_location=airflow_constraints_location,
         airflow_constraints_mode=airflow_constraints_mode,
@@ -545,7 +603,7 @@ def start_airflow(
         builder=builder,
         celery_broker=celery_broker,
         celery_flower=celery_flower,
-        database_isolation=database_isolation,
+        clean_airflow_installation=clean_airflow_installation,
         db_reset=db_reset,
         dev_mode=dev_mode,
         docker_host=docker_host,
@@ -554,7 +612,6 @@ def start_airflow(
         force_build=force_build,
         forward_credentials=forward_credentials,
         github_repository=github_repository,
-        image_tag=image_tag,
         integration=integration,
         install_selected_providers=install_selected_providers,
         install_airflow_with_constraints=True,
@@ -576,10 +633,18 @@ def start_airflow(
         start_airflow=True,
         use_airflow_version=use_airflow_version,
         use_packages_from_dist=use_packages_from_dist,
+        use_uv=use_uv,
+        uv_http_timeout=uv_http_timeout,
     )
     rebuild_or_pull_ci_image_if_needed(command_params=shell_params)
     result = enter_shell(shell_params=shell_params)
     fix_ownership_using_docker()
+    if CELERY_INTEGRATION in integration and executor not in ALLOWED_CELERY_EXECUTORS:
+        get_console().print(
+            "[warning]A non-Celery executor was used with start-airflow in combination with the Celery "
+            "integration, this will lead to some processes failing to start (e.g.  celery worker)\n"
+        )
+
     sys.exit(result.returncode)
 
 
@@ -602,6 +667,11 @@ def start_airflow(
     is_flag=True,
 )
 @click.option(
+    "--skip-deletion",
+    help="Skip deletion of generated new packages documentation in `docs/apache-airflow-providers-*`.",
+    is_flag=True,
+)
+@click.option(
     "--package-filter",
     help="Filter(s) to use more than one can be specified. You can use glob pattern matching the "
     "full package name, for example `apache-airflow-providers-*`. Useful when you want to select"
@@ -613,7 +683,7 @@ def start_airflow(
     "--package-list",
     envvar="PACKAGE_LIST",
     type=str,
-    help="Optional, contains comma-seperated list of package ids that are processed for documentation "
+    help="Optional, contains comma-separated list of package ids that are processed for documentation "
     "building, and document publishing. It is an easier alternative to adding individual packages as"
     " arguments to every command. This overrides the packages passed as arguments.",
 )
@@ -629,6 +699,7 @@ def build_docs(
     include_not_ready_providers: bool,
     include_removed_providers: bool,
     one_pass_only: bool,
+    skip_deletion: bool,
     package_filter: tuple[str, ...],
     package_list: str,
     spellcheck_only: bool,
@@ -665,6 +736,7 @@ def build_docs(
         package_filter=package_filter,
         docs_only=docs_only,
         spellcheck_only=spellcheck_only,
+        skip_deletion=skip_deletion,
         one_pass_only=one_pass_only,
         short_doc_packages=expand_all_provider_packages(
             short_doc_packages=doc_packages,
@@ -686,7 +758,7 @@ def build_docs(
             "[info]To view the built documentation, you have two options:\n\n"
             "1. Start the webserver in breeze and access the built docs at "
             "http://localhost:28080/docs/\n"
-            "2. Alternatively, you can run ./docs/start_doc_server.sh for a lighter resource option and view"
+            "2. Alternatively, you can run ./docs/start_doc_server.sh for a lighter resource option and view "
             "the built docs at http://localhost:8000"
         )
     sys.exit(result.returncode)
@@ -748,7 +820,6 @@ def build_docs(
 @option_dry_run
 @option_force_build
 @option_github_repository
-@option_image_tag_for_running
 @option_skip_image_upgrade_check
 @option_verbose
 @click.argument("precommit_args", nargs=-1, type=click.UNPROCESSED)
@@ -759,7 +830,6 @@ def static_checks(
     file: Iterable[str],
     force_build: bool,
     github_repository: str,
-    image_tag: str,
     initialize_environment: bool,
     last_commit: bool,
     max_initialization_attempts: int,
@@ -774,7 +844,6 @@ def static_checks(
     build_params = BuildCiParams(
         builder=builder,
         force_build=force_build,
-        image_tag=image_tag,
         github_repository=github_repository,
         # for static checks we do not want to regenerate dependencies before pre-commits are run
         # we want the pre-commit to do it for us (and detect the case the dependencies are updated)
@@ -793,7 +862,7 @@ def static_checks(
         for attempt in range(1, 1 + max_initialization_attempts):
             get_console().print(f"[info]Attempt number {attempt} to install pre-commit environments")
             initialization_result = run_command(
-                [sys.executable, "-m", "pre_commit", "install", "--install-hooks"],
+                ["pre-commit", "install", "--install-hooks"],
                 check=False,
                 no_output_dump_on_exception=True,
                 text=True,
@@ -806,7 +875,7 @@ def static_checks(
             get_console().print("[error]Could not install pre-commit environments[/]")
             sys.exit(return_code)
 
-    command_to_execute = [sys.executable, "-m", "pre_commit", "run"]
+    command_to_execute = ["pre-commit", "run"]
     if not one_or_none_set([last_commit, commit_ref, only_my_changes, all_files]):
         get_console().print(
             "\n[error]You can only specify "
@@ -834,9 +903,7 @@ def static_checks(
     if show_diff_on_failure:
         command_to_execute.append("--show-diff-on-failure")
     if last_commit:
-        get_console().print(
-            "\n[info]Running checks for last commit in the current branch current branch: HEAD^..HEAD\n"
-        )
+        get_console().print("\n[info]Running checks for last commit in the current branch: HEAD^..HEAD\n")
         command_to_execute.extend(["--from-ref", "HEAD^", "--to-ref", "HEAD"])
     if commit_ref:
         get_console().print(f"\n[info]Running checks for selected commit: {commit_ref}\n")
@@ -909,6 +976,34 @@ def compile_www_assets(dev: bool, force_clean: bool):
         dev=dev, run_in_background=False, force_clean=force_clean
     )
     if compile_www_assets_result.returncode != 0:
+        get_console().print("[warn]New assets were generated[/]")
+    sys.exit(0)
+
+
+@main.command(
+    name="compile-ui-assets",
+    help="Compiles ui assets.",
+)
+@click.option(
+    "--dev",
+    help="Run development version of assets compilation - it will not quit and automatically "
+    "recompile assets on-the-fly when they are changed.",
+    is_flag=True,
+)
+@click.option(
+    "--force-clean",
+    help="Force cleanup of compile assets before building them.",
+    is_flag=True,
+)
+@option_verbose
+@option_dry_run
+def compile_ui_assets(dev: bool, force_clean: bool):
+    perform_environment_checks()
+    assert_pre_commit_installed()
+    compile_ui_assets_result = run_compile_ui_assets(
+        dev=dev, run_in_background=False, force_clean=force_clean
+    )
+    if compile_ui_assets_result.returncode != 0:
         get_console().print("[warn]New assets were generated[/]")
     sys.exit(0)
 
@@ -1011,3 +1106,36 @@ def find_airflow_container() -> str | None:
     else:
         stop_exec_on_error(1)
         return None
+
+
+@main.command(
+    name="generate-migration-file", help="Autogenerate the alembic migration file for the ORM changes."
+)
+@option_builder
+@option_github_repository
+@click.option(
+    "-m",
+    "--message",
+    help="Message to use for the migration",
+    default="Empty message",
+    show_default=True,
+)
+def autogenerate(
+    builder: str,
+    github_repository: str,
+    message: str,
+):
+    """Autogenerate the alembic migration file."""
+    perform_environment_checks()
+    fix_ownership_using_docker()
+    build_params = BuildCiParams(
+        github_repository=github_repository, python=DEFAULT_PYTHON_MAJOR_MINOR_VERSION, builder=builder
+    )
+    rebuild_or_pull_ci_image_if_needed(command_params=build_params)
+    shell_params = ShellParams(
+        github_repository=github_repository,
+        python=DEFAULT_PYTHON_MAJOR_MINOR_VERSION,
+    )
+    cmd = f"/opt/airflow/scripts/in_container/run_generate_migration.sh '{message}'"
+    execute_command_in_shell(shell_params, project_name="db", command=cmd)
+    fix_ownership_using_docker()

@@ -20,7 +20,6 @@ import json
 import logging
 import os
 import shutil
-import sys
 from copy import copy
 from unittest import mock
 from unittest.mock import ANY, MagicMock
@@ -40,8 +39,8 @@ from airflow.models.taskinstance import TaskInstance
 from airflow.providers.cncf.kubernetes.hooks.kubernetes import KubernetesHook
 from airflow.providers.cncf.kubernetes.operators.pod import KubernetesPodOperator
 from airflow.providers.cncf.kubernetes.utils.pod_manager import OnFinishAction, PodManager
+from airflow.sdk.definitions.context import Context
 from airflow.utils import timezone
-from airflow.utils.context import Context
 from airflow.utils.types import DagRunType
 from airflow.version import version as airflow_version
 from kubernetes_tests.test_base import BaseK8STest, StringContainingId
@@ -51,18 +50,17 @@ POD_MANAGER_CLASS = "airflow.providers.cncf.kubernetes.utils.pod_manager.PodMana
 
 
 def create_context(task) -> Context:
-    dag = DAG(dag_id="dag")
-    execution_date = timezone.datetime(
-        2016, 1, 1, 1, 0, 0, tzinfo=timezone.parse_timezone("Europe/Amsterdam")
-    )
+    dag = DAG(dag_id="dag", schedule=None)
+    logical_date = timezone.datetime(2016, 1, 1, 1, 0, 0, tzinfo=timezone.parse_timezone("Europe/Amsterdam"))
     dag_run = DagRun(
         dag_id=dag.dag_id,
-        execution_date=execution_date,
-        run_id=DagRun.generate_run_id(DagRunType.MANUAL, execution_date),
+        logical_date=logical_date,
+        run_id=DagRun.generate_run_id(DagRunType.MANUAL, logical_date),
     )
     task_instance = TaskInstance(task=task)
     task_instance.dag_run = dag_run
     task_instance.dag_id = dag.dag_id
+    task_instance.try_number = 1
     task_instance.xcom_push = mock.Mock()  # type: ignore
     return Context(
         dag=dag,
@@ -629,12 +627,12 @@ class TestKubernetesPodOperatorSystem:
             do_xcom_push=False,
             startup_timeout_seconds=5,
         )
-        with pytest.raises(AirflowException):
-            context = create_context(k)
+        context = create_context(k)
+        with pytest.raises(AirflowException, match="Pod .* returned a failure"):
             k.execute(context)
-            actual_pod = self.api_client.sanitize_for_serialization(k.pod)
-            self.expected_pod["spec"]["containers"][0]["image"] = bad_image_name
-            assert self.expected_pod == actual_pod
+        actual_pod = self.api_client.sanitize_for_serialization(k.pod)
+        self.expected_pod["spec"]["containers"][0]["image"] = bad_image_name
+        assert self.expected_pod == actual_pod
 
     def test_faulty_service_account(self, mock_get_connection):
         k = KubernetesPodOperator(
@@ -669,12 +667,12 @@ class TestKubernetesPodOperatorSystem:
             in_cluster=False,
             do_xcom_push=False,
         )
-        with pytest.raises(AirflowException):
-            context = create_context(k)
+        context = create_context(k)
+        with pytest.raises(AirflowException, match="Pod .* returned a failure"):
             k.execute(context)
-            actual_pod = self.api_client.sanitize_for_serialization(k.pod)
-            self.expected_pod["spec"]["containers"][0]["args"] = bad_internal_command
-            assert self.expected_pod == actual_pod
+        actual_pod = self.api_client.sanitize_for_serialization(k.pod)
+        self.expected_pod["spec"]["containers"][0]["args"] = bad_internal_command
+        assert self.expected_pod == actual_pod
 
     def test_xcom_push(self, test_label, mock_get_connection):
         expected = {"test_label": test_label, "buzz": 2}
@@ -724,14 +722,13 @@ class TestKubernetesPodOperatorSystem:
         ]
         assert self.expected_pod == actual_pod
 
-    def test_pod_template_file_system(self, mock_get_connection):
+    def test_pod_template_file_system(self, mock_get_connection, basic_pod_template):
         """Note: this test requires that you have a namespace ``mem-example`` in your cluster."""
-        fixture = sys.path[0] + "/tests/providers/cncf/kubernetes/basic_pod.yaml"
         k = KubernetesPodOperator(
             task_id=str(uuid4()),
             in_cluster=False,
             labels=self.labels,
-            pod_template_file=fixture,
+            pod_template_file=basic_pod_template.as_posix(),
             do_xcom_push=True,
         )
 
@@ -747,14 +744,15 @@ class TestKubernetesPodOperatorSystem:
             pytest.param({"env_name": "value"}, id="backcompat"),  # todo: remove?
         ],
     )
-    def test_pod_template_file_with_overrides_system(self, env_vars, test_label, mock_get_connection):
-        fixture = sys.path[0] + "/tests/providers/cncf/kubernetes/basic_pod.yaml"
+    def test_pod_template_file_with_overrides_system(
+        self, env_vars, test_label, mock_get_connection, basic_pod_template
+    ):
         k = KubernetesPodOperator(
             task_id=str(uuid4()),
             labels=self.labels,
             env_vars=env_vars,
             in_cluster=False,
-            pod_template_file=fixture,
+            pod_template_file=basic_pod_template.as_posix(),
             do_xcom_push=True,
         )
 
@@ -774,8 +772,7 @@ class TestKubernetesPodOperatorSystem:
         assert k.pod.spec.containers[0].env == [k8s.V1EnvVar(name="env_name", value="value")]
         assert result == {"hello": "world"}
 
-    def test_pod_template_file_with_full_pod_spec(self, test_label, mock_get_connection):
-        fixture = sys.path[0] + "/tests/providers/cncf/kubernetes/basic_pod.yaml"
+    def test_pod_template_file_with_full_pod_spec(self, test_label, mock_get_connection, basic_pod_template):
         pod_spec = k8s.V1Pod(
             metadata=k8s.V1ObjectMeta(
                 labels={"test_label": test_label, "fizz": "buzz"},
@@ -793,7 +790,7 @@ class TestKubernetesPodOperatorSystem:
             task_id=str(uuid4()),
             labels=self.labels,
             in_cluster=False,
-            pod_template_file=fixture,
+            pod_template_file=basic_pod_template.as_posix(),
             full_pod_spec=pod_spec,
             do_xcom_push=True,
         )
@@ -927,6 +924,7 @@ class TestKubernetesPodOperatorSystem:
         await_xcom_sidecar_container_start_mock,
         caplog,
         test_label,
+        pod_template,
     ):
         # todo: This isn't really a system test
         await_xcom_sidecar_container_start_mock.return_value = None
@@ -935,12 +933,11 @@ class TestKubernetesPodOperatorSystem:
         hook_mock.return_value.get_xcom_sidecar_container_resources.return_value = None
         hook_mock.return_value.get_connection.return_value = Connection(conn_id="kubernetes_default")
         extract_xcom_mock.return_value = "{}"
-        path = sys.path[0] + "/tests/providers/cncf/kubernetes/pod.yaml"
         k = KubernetesPodOperator(
             task_id=str(uuid4()),
             labels=self.labels,
             random_name_suffix=False,
-            pod_template_file=path,
+            pod_template_file=pod_template.as_posix(),
             do_xcom_push=True,
         )
         pod_mock = MagicMock()
@@ -1173,7 +1170,7 @@ class TestKubernetesPodOperatorSystem:
         # `create_pod` should be called because though there's still a pod to be found,
         # it will be `already_checked`
         with mock.patch(f"{POD_MANAGER_CLASS}.create_pod") as create_mock:
-            with pytest.raises(Exception):
+            with pytest.raises(ApiException, match=r'pods \\"test.[a-z0-9]+\\" not found'):
                 k.execute(context)
             create_mock.assert_called_once()
 
@@ -1201,24 +1198,6 @@ class TestKubernetesPodOperatorSystem:
         actual_pod = self.api_client.sanitize_for_serialization(k.pod)
         self.expected_pod["spec"]["containers"][0]["name"] = "apple-sauce"
         assert self.expected_pod["spec"] == actual_pod["spec"]
-
-    def test_progess_call(self, mock_get_connection):
-        progress_callback = MagicMock()
-        k = KubernetesPodOperator(
-            namespace="default",
-            image="ubuntu:16.04",
-            cmds=["bash", "-cx"],
-            arguments=["echo 10"],
-            labels=self.labels,
-            task_id=str(uuid4()),
-            in_cluster=False,
-            do_xcom_push=False,
-            get_logs=True,
-            progress_callback=progress_callback,
-        )
-        context = create_context(k)
-        k.execute(context)
-        progress_callback.assert_called()
 
     def test_changing_base_container_name_no_logs(self, mock_get_connection):
         """
@@ -1327,7 +1306,101 @@ class TestKubernetesPodOperatorSystem:
         )
         assert MyK8SPodOperator(task_id=str(uuid4())).base_container_name == "tomato-sauce"
 
+    def test_init_container_logs(self, mock_get_connection):
+        marker_from_init_container = f"{uuid4()}"
+        marker_from_main_container = f"{uuid4()}"
+        callback = MagicMock()
+        init_container = k8s.V1Container(
+            name="init-container",
+            image="busybox",
+            command=["sh", "-cx"],
+            args=[f"echo {marker_from_init_container}"],
+        )
+        k = KubernetesPodOperator(
+            namespace="default",
+            image="busybox",
+            cmds=["sh", "-cx"],
+            arguments=[f"echo {marker_from_main_container}"],
+            labels=self.labels,
+            task_id=str(uuid4()),
+            in_cluster=False,
+            do_xcom_push=False,
+            startup_timeout_seconds=60,
+            init_containers=[init_container],
+            init_container_logs=True,
+            callbacks=callback,
+        )
+        context = create_context(k)
+        k.execute(context)
 
+        calls_args = "\n".join(["".join(c.kwargs["line"]) for c in callback.progress_callback.call_args_list])
+        assert marker_from_init_container in calls_args
+        assert marker_from_main_container in calls_args
+
+    def test_init_container_logs_filtered(self, mock_get_connection):
+        marker_from_init_container_to_log_1 = f"{uuid4()}"
+        marker_from_init_container_to_log_2 = f"{uuid4()}"
+        marker_from_init_container_to_ignore = f"{uuid4()}"
+        marker_from_main_container = f"{uuid4()}"
+        callback = MagicMock()
+        init_container_to_log_1 = k8s.V1Container(
+            name="init-container-to-log-1",
+            image="busybox",
+            command=["sh", "-cx"],
+            args=[f"echo {marker_from_init_container_to_log_1}"],
+        )
+        init_container_to_log_2 = k8s.V1Container(
+            name="init-container-to-log-2",
+            image="busybox",
+            command=["sh", "-cx"],
+            args=[f"echo {marker_from_init_container_to_log_2}"],
+        )
+        init_container_to_ignore = k8s.V1Container(
+            name="init-container-to-ignore",
+            image="busybox",
+            command=["sh", "-cx"],
+            args=[f"echo {marker_from_init_container_to_ignore}"],
+        )
+        k = KubernetesPodOperator(
+            namespace="default",
+            image="busybox",
+            cmds=["sh", "-cx"],
+            arguments=[f"echo {marker_from_main_container}"],
+            labels=self.labels,
+            task_id=str(uuid4()),
+            in_cluster=False,
+            do_xcom_push=False,
+            startup_timeout_seconds=60,
+            init_containers=[
+                init_container_to_log_1,
+                init_container_to_log_2,
+                init_container_to_ignore,
+            ],
+            init_container_logs=[
+                # not same order as defined in init_containers
+                "init-container-to-log-2",
+                "init-container-to-log-1",
+            ],
+            callbacks=callback,
+        )
+        context = create_context(k)
+        k.execute(context)
+
+        calls_args = "\n".join(["".join(c.kwargs["line"]) for c in callback.progress_callback.call_args_list])
+        assert marker_from_init_container_to_log_1 in calls_args
+        assert marker_from_init_container_to_log_2 in calls_args
+        assert marker_from_init_container_to_ignore not in calls_args
+        assert marker_from_main_container in calls_args
+
+        assert (
+            calls_args.find(marker_from_init_container_to_log_1)
+            < calls_args.find(marker_from_init_container_to_log_2)
+            < calls_args.find(marker_from_main_container)
+        )
+
+
+# TODO: Task SDK: https://github.com/apache/airflow/issues/45438
+@pytest.mark.skip(reason="AIP-72: Secret Masking yet to be implemented")
 def test_hide_sensitive_field_in_templated_fields_on_error(caplog, monkeypatch):
     logger = logging.getLogger("airflow.task")
     monkeypatch.setattr(logger, "propagate", True)
@@ -1347,7 +1420,7 @@ def test_hide_sensitive_field_in_templated_fields_on_error(caplog, monkeypatch):
     task = KubernetesPodOperator(
         task_id="dry_run_demo",
         name="hello-dry-run",
-        image="python:3.8-slim-buster",
+        image="python:3.9-slim-buster",
         cmds=["printenv"],
         env_vars=[
             V1EnvVar(name="password", value="{{ password }}"),

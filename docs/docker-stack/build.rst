@@ -215,7 +215,7 @@ In the simplest case building your image consists of those steps:
 
 1) Create your own ``Dockerfile`` (name it ``Dockerfile``) where you add:
 
-* information what your image should be based on (for example ``FROM: apache/airflow:|airflow-version|-python3.8``
+* information what your image should be based on (for example ``FROM: apache/airflow:|airflow-version|-python3.9``
 
 * additional steps that should be executed in your image (typically in the form of ``RUN <command>``)
 
@@ -316,13 +316,13 @@ Naming conventions for the images:
 +----------------+-----------------------+---------------------------------+--------------------------------------+
 | Image          | Python                | Standard image                  | Slim image                           |
 +================+=======================+=================================+======================================+
-| Latest default | 3.8                   | apache/airflow:latest           | apache/airflow:slim-latest           |
+| Latest default | 3.9                   | apache/airflow:latest           | apache/airflow:slim-latest           |
 +----------------+-----------------------+---------------------------------+--------------------------------------+
-| Default        | 3.8                   | apache/airflow:X.Y.Z            | apache/airflow:slim-X.Y.Z            |
+| Default        | 3.9                   | apache/airflow:X.Y.Z            | apache/airflow:slim-X.Y.Z            |
 +----------------+-----------------------+---------------------------------+--------------------------------------+
-| Latest         | 3.8,3.9,3.10,3.11     | apache/airflow:latest-pythonN.M | apache/airflow:slim-latest-pythonN.M |
+| Latest         | 3.9,3.10,3.11,3.12    | apache/airflow:latest-pythonN.M | apache/airflow:slim-latest-pythonN.M |
 +----------------+-----------------------+---------------------------------+--------------------------------------+
-| Specific       | 3.8,3.9,3.10,3.11     | apache/airflow:X.Y.Z-pythonN.M  | apache/airflow:slim-X.Y.Z-pythonN.M  |
+| Specific       | 3.9,3.10,3.11,3.12    | apache/airflow:X.Y.Z-pythonN.M  | apache/airflow:slim-X.Y.Z-pythonN.M  |
 +----------------+-----------------------+---------------------------------+--------------------------------------+
 
 * The "latest" image is always the latest released stable version available.
@@ -334,7 +334,7 @@ Naming conventions for the images:
 Important notes for the base images
 -----------------------------------
 
-You should be aware, about a few things:
+You should be aware, about a few things
 
 * The production image of airflow uses "airflow" user, so if you want to add some of the tools
   as ``root`` user, you need to switch to it with ``USER`` directive of the Dockerfile and switch back to
@@ -342,14 +342,19 @@ You should be aware, about a few things:
   `best practices of Dockerfiles <https://docs.docker.com/develop/develop-images/dockerfile_best-practices/>`_
   to make sure your image is lean and small.
 
-* The PyPI dependencies in Apache Airflow are installed in the user library, of the "airflow" user, so
-  PIP packages are installed to ``~/.local`` folder as if the ``--user`` flag was specified when running PIP.
-  Note also that using ``--no-cache-dir`` is a good idea that can help to make your image smaller.
+* You can use regular ``pip install`` commands (and as of Dockerfile coming in Airflow 2.9 also
+  ``uv pip install`` - experimental) to install PyPI packages. Regular ``install`` commands should be used,
+  however you should remember to add ``apache-airflow==${AIRFLOW_VERSION}`` to the command to avoid
+  accidentally upgrading or downgrading the version of Apache Airflow. Depending on the scenario you might
+  also use constraints file. As of Dockerfile available in Airflow 2.9.0, the constraints file used to
+  build the image is available in ``${HOME}/constraints.txt.``
 
-.. note::
-  Only as of ``2.0.1`` image the ``--user`` flag is turned on by default by setting ``PIP_USER`` environment
-  variable to ``true``. This can be disabled by un-setting the variable or by setting it to ``false``. In the
-  2.0.0 image you had to add the ``--user`` flag as ``pip install --user`` command.
+* The PyPI dependencies in Apache Airflow are installed in the ``~/.local`` virtualenv, of the "airflow" user,
+  so PIP packages are installed to ``~/.local`` folder as if the ``--user`` flag was specified when running
+  PIP. This has the effect that when you create a virtualenv with ``--system-site-packages`` flag, the
+  virtualenv created will automatically have all the same packages installed as local airflow installation.
+  Note also that using ``--no-cache-dir`` in ``pip`` or ``--no-cache`` in ``uv`` is a good idea that can
+  help to make your image smaller.
 
 * If your apt, or PyPI dependencies require some of the ``build-essential`` or other packages that need
   to compile your python dependencies, then your best choice is to follow the "Customize the image" route,
@@ -373,23 +378,10 @@ You should be aware, about a few things:
   ``umask 0002`` is set as default when you enter the image, so any directories you create by default
   in runtime, will have ``GID=0`` and will be group-writable.
 
-.. note::
-  When you build image for Airflow version < ``2.1`` (for example 2.0.2 or 1.10.15) the image is built with
-  PIP 20.2.4 because ``PIP21+`` is only supported for ``Airflow 2.1+``
-
-.. note::
-  Only as of ``2.0.2`` the default group of ``airflow`` user is ``root``. Previously it was ``airflow``,
-  so if you are building your images based on an earlier image, you need to manually change the default
-  group for airflow user:
-
-.. code-block:: docker
-
-    RUN usermod -g 0 airflow
-
 Examples of image extending
 ---------------------------
 
-Example of customizing Airflow Provider packages
+Example of setting own Airflow Provider packages
 ................................................
 
 The :ref:`Airflow Providers <providers:community-maintained-providers>` are released independently of core
@@ -431,6 +423,32 @@ The following example adds ``lxml`` python package from PyPI to the image.
     :language: Dockerfile
     :start-after: [START Dockerfile]
     :end-before: [END Dockerfile]
+
+Example of adding ``PyPI`` package with constraints
+...................................................
+
+The following example adds ``lxml`` python package from PyPI to the image with constraints that were
+used to install airflow. This allows you to use the version of packages that you know were tested with the
+given version of Airflow. You can also use it if you do not want to use potentially newer versions
+that were released after the version of Airflow you are using.
+
+.. exampleinclude:: docker-examples/extending/add-pypi-packages-constraints/Dockerfile
+    :language: Dockerfile
+    :start-after: [START Dockerfile]
+    :end-before: [END Dockerfile]
+
+
+Example of adding ``PyPI`` package with uv
+..........................................
+
+The following example adds ``lxml`` python package from PyPI to the image using ``uv``. This is an
+experimental feature as ``uv`` is a very fast but also very new tool in the Python ecosystem.
+
+.. exampleinclude:: docker-examples/extending/add-pypi-packages-uv/Dockerfile
+    :language: Dockerfile
+    :start-after: [START Dockerfile]
+    :end-before: [END Dockerfile]
+
 
 Example of adding packages from requirements.txt
 ................................................
@@ -516,8 +534,6 @@ Customizing the image
 .. warning::
 
     In Dockerfiles released in Airflow 2.8.0, images are based on ``Debian Bookworm`` images as base images.
-    For Dockerfiles released as part of 2.8.* series you can still choose - deprecated now - ``Debian Bullseye``
-    image as base images, but this possibility will be removed in 2.9.0.
 
 .. note::
     You can usually use the latest ``Dockerfile`` released by Airflow to build previous Airflow versions.
@@ -698,7 +714,7 @@ Building from PyPI packages
 
 This is the basic way of building the custom images from sources.
 
-The following example builds the production image in version ``3.8`` with latest PyPI-released Airflow,
+The following example builds the production image in version ``3.9`` with latest PyPI-released Airflow,
 with default set of Airflow extras and dependencies. The latest PyPI-released Airflow constraints are used automatically.
 
 .. exampleinclude:: docker-examples/customizing/stable-airflow.sh
@@ -706,7 +722,7 @@ with default set of Airflow extras and dependencies. The latest PyPI-released Ai
     :start-after: [START build]
     :end-before: [END build]
 
-The following example builds the production image in version ``3.8`` with default extras from ``2.3.0`` Airflow
+The following example builds the production image in version ``3.9`` with default extras from ``2.3.0`` Airflow
 package. The ``2.3.0`` constraints are used automatically.
 
 .. exampleinclude:: docker-examples/customizing/pypi-selected-version.sh
@@ -714,7 +730,7 @@ package. The ``2.3.0`` constraints are used automatically.
     :start-after: [START build]
     :end-before: [END build]
 
-The following example builds the production image in version ``3.8`` with additional airflow extras
+The following example builds the production image in version ``3.9`` with additional airflow extras
 (``mssql,hdfs``) from ``2.3.0`` PyPI package, and additional dependency (``oauth2client``).
 
 .. exampleinclude:: docker-examples/customizing/pypi-extras-and-deps.sh
@@ -741,7 +757,7 @@ have more complex dependencies to build.
 Building optimized images
 .........................
 
-The following example builds the production image in version ``3.8`` with additional airflow extras from
+The following example builds the production image in version ``3.9`` with additional airflow extras from
 PyPI package but it includes additional apt dev and runtime dependencies.
 
 The dev dependencies are those that require ``build-essential`` and usually need to involve recompiling
@@ -756,24 +772,18 @@ The ``jre-headless`` does not require recompiling so it can be installed as the 
     :start-after: [START build]
     :end-before: [END build]
 
-.. _image-build-bullseye:
+.. _image-build-uv:
 
-Building Debian Bullseye-based images
-.....................................
+Building prod images using UV as the package installer
+......................................................
 
-.. warning::
+The following example builds the production image in default settings, but uses ``uv`` to build the image.
+This is an experimental feature as ``uv`` is a very fast but also very new tool in the Python ecosystem.
 
-  By default Airflow images as of Airflow 2.8.0 are based on ``Debian Bookworm``. However, you can also
-  build images based on - deprecated - ``Debian Bullseye``. This option will be removed in the
-  Dockerfile released in Airflow 2.9.0
-
-The following example builds the production image in version ``3.8`` based on ``Debian Bullseye`` base image.
-
-.. exampleinclude:: docker-examples/customizing/debian-bullseye.sh
+.. exampleinclude:: docker-examples/customizing/use-uv.sh
     :language: bash
     :start-after: [START build]
     :end-before: [END build]
-
 
 .. _image-build-mysql:
 
@@ -805,7 +815,7 @@ a branch or tag in your repository and use the tag or branch in the URL that you
 In case of GitHub builds you need to pass the constraints reference manually in case you want to use
 specific constraints, otherwise the default ``constraints-main`` is used.
 
-The following example builds the production image in version ``3.8`` with default extras from the latest main version and
+The following example builds the production image in version ``3.9`` with default extras from the latest main version and
 constraints are taken from latest version of the constraints-main branch in GitHub.
 
 .. exampleinclude:: docker-examples/customizing/github-main.sh
@@ -936,7 +946,6 @@ On a separate (air-gaped) system, all the PyPI packages can be copied to ``docke
 where you can build the image using the packages downloaded by passing those build args:
 
 * ``INSTALL_PACKAGES_FROM_CONTEXT="true"``  - to use packages present in ``docker-context-files``
-* ``AIRFLOW_PRE_CACHED_PIP_PACKAGES="false"``  - to not pre-cache packages from PyPI when building image
 * ``AIRFLOW_CONSTRAINTS_LOCATION=/docker-context-files/YOUR_CONSTRAINT_FILE.txt`` - to downloaded constraint files
 * (Optional) ``INSTALL_MYSQL_CLIENT="false"`` if you do not want to install ``MySQL``
   client from the Oracle repositories.
@@ -1017,13 +1026,11 @@ You can read more details about the images - the context, their parameters and i
 `Images documentation <https://github.com/apache/airflow/blob/main/dev/breeze/doc/ci/02_images.md>`_.
 
 
-Pip packages caching
+Dependencies caching
 ....................
 
 To enable faster iteration when building the image locally (especially if you are testing different combination of
 python packages), pip caching has been enabled. The caching id is based on four different parameters:
 
-1. ``PYTHON_BASE_IMAGE``: Avoid sharing same cache based on python version and target os
-2. ``AIRFLOW_PIP_VERSION``
-3. ``TARGETARCH``: Avoid sharing architecture specific cached package
-4. ``PIP_CACHE_EPOCH``: Enable changing cache id by passing ``PIP_CACHE_EPOCH`` as ``--build-arg``
+1. ``TARGETARCH``: Avoid sharing architecture specific cached package
+2. ``DEPENDENCY_CACHE_EPOCH``: Enable invalidating cache by passing ``DEPENDENCY_CACHE_EPOCH`` as ``--build-arg``

@@ -19,13 +19,13 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from airflow.exceptions import AirflowException
 from airflow.utils.session import NEW_SESSION, provide_session
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
 
     from airflow.jobs.job import Job
-    from airflow.serialization.pydantic.job import JobPydantic
 
 
 class BaseJobRunner:
@@ -35,7 +35,7 @@ class BaseJobRunner:
 
     def __init__(self, job: Job) -> None:
         if job.job_type and job.job_type != self.job_type:
-            raise Exception(
+            raise AirflowException(
                 f"The job is already assigned a different job_type: {job.job_type}."
                 f"This is a bug and should be reported."
             )
@@ -63,7 +63,7 @@ class BaseJobRunner:
 
     @classmethod
     @provide_session
-    def most_recent_job(cls, session: Session = NEW_SESSION) -> Job | JobPydantic | None:
+    def most_recent_job(cls, session: Session = NEW_SESSION) -> Job | None:
         """Return the most recent job of this type, if any, based on last heartbeat received."""
         from airflow.jobs.job import most_recent_job
 

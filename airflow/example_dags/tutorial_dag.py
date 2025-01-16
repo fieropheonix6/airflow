@@ -19,6 +19,7 @@
 ### DAG Tutorial Documentation
 This DAG is demonstrating an Extract -> Transform -> Load pipeline
 """
+
 from __future__ import annotations
 
 # [START tutorial]
@@ -32,7 +33,7 @@ import pendulum
 from airflow.models.dag import DAG
 
 # Operators; we need this to operate!
-from airflow.operators.python import PythonOperator
+from airflow.providers.standard.operators.python import PythonOperator
 
 # [END import_module]
 

@@ -17,10 +17,10 @@
 # under the License.
 from __future__ import annotations
 
-import logging
 from collections import defaultdict
 from datetime import timedelta
 from typing import TYPE_CHECKING
+from unittest import mock
 from unittest.mock import patch
 
 import pendulum
@@ -36,24 +36,29 @@ from airflow.models.param import ParamsDict
 from airflow.models.taskinstance import TaskInstance
 from airflow.models.taskmap import TaskMap
 from airflow.models.xcom_arg import XComArg
-from airflow.operators.python import PythonOperator
+from airflow.providers.standard.operators.python import PythonOperator
 from airflow.utils.state import TaskInstanceState
 from airflow.utils.task_group import TaskGroup
 from airflow.utils.task_instance_session import set_current_task_instance_session
 from airflow.utils.trigger_rule import TriggerRule
 from airflow.utils.xcom import XCOM_RETURN_KEY
+
 from tests.models import DEFAULT_DATE
-from tests.test_utils.mapping import expand_mapped_task
-from tests.test_utils.mock_operators import MockOperator, MockOperatorWithNestedFields, NestedFields
+from tests_common.test_utils.mapping import expand_mapped_task
+from tests_common.test_utils.mock_operators import (
+    MockOperator,
+    MockOperatorWithNestedFields,
+    NestedFields,
+)
 
 pytestmark = pytest.mark.db_test
 
 if TYPE_CHECKING:
-    from airflow.utils.context import Context
+    from airflow.sdk.definitions.context import Context
 
 
 def test_task_mapping_with_dag():
-    with DAG("test-dag", start_date=DEFAULT_DATE) as dag:
+    with DAG("test-dag", schedule=None, start_date=DEFAULT_DATE) as dag:
         task1 = BaseOperator(task_id="op1")
         literal = ["a", "b", "c"]
         mapped = MockOperator.partial(task_id="task_2").expand(arg2=literal)
@@ -73,8 +78,6 @@ def test_task_mapping_with_dag():
 
 @patch("airflow.models.abstractoperator.AbstractOperator.render_template")
 def test_task_mapping_with_dag_and_list_of_pandas_dataframe(mock_render_template, caplog):
-    caplog.set_level(logging.INFO)
-
     class UnrenderableClass:
         def __bool__(self):
             raise ValueError("Similar to Pandas DataFrames, this class raises an exception.")
@@ -89,13 +92,12 @@ def test_task_mapping_with_dag_and_list_of_pandas_dataframe(mock_render_template
         def execute(self, context: Context):
             pass
 
-    with DAG("test-dag", start_date=DEFAULT_DATE) as dag:
+    with DAG("test-dag", schedule=None, start_date=DEFAULT_DATE) as dag:
         task1 = CustomOperator(task_id="op1", arg=None)
         unrenderable_values = [UnrenderableClass(), UnrenderableClass()]
         mapped = CustomOperator.partial(task_id="task_2").expand(arg=unrenderable_values)
         task1 >> mapped
     dag.test()
-    assert caplog.text.count("[DAG TEST] end task task_id=task_2") == 2
     assert (
         "Unable to check if the value of type 'UnrenderableClass' is False for task 'task_2', field 'arg'"
         in caplog.text
@@ -104,7 +106,7 @@ def test_task_mapping_with_dag_and_list_of_pandas_dataframe(mock_render_template
 
 
 def test_task_mapping_without_dag_context():
-    with DAG("test-dag", start_date=DEFAULT_DATE) as dag:
+    with DAG("test-dag", schedule=None, start_date=DEFAULT_DATE) as dag:
         task1 = BaseOperator(task_id="op1")
     literal = ["a", "b", "c"]
     mapped = MockOperator.partial(task_id="task_2").expand(arg2=literal)
@@ -121,7 +123,7 @@ def test_task_mapping_without_dag_context():
 
 def test_task_mapping_default_args():
     default_args = {"start_date": DEFAULT_DATE.now(), "owner": "test"}
-    with DAG("test-dag", start_date=DEFAULT_DATE, default_args=default_args):
+    with DAG("test-dag", schedule=None, start_date=DEFAULT_DATE, default_args=default_args):
         task1 = BaseOperator(task_id="op1")
         literal = ["a", "b", "c"]
         mapped = MockOperator.partial(task_id="task_2").expand(arg2=literal)
@@ -134,7 +136,7 @@ def test_task_mapping_default_args():
 
 def test_task_mapping_override_default_args():
     default_args = {"retries": 2, "start_date": DEFAULT_DATE.now()}
-    with DAG("test-dag", start_date=DEFAULT_DATE, default_args=default_args):
+    with DAG("test-dag", schedule=None, start_date=DEFAULT_DATE, default_args=default_args):
         literal = ["a", "b", "c"]
         mapped = MockOperator.partial(task_id="task", retries=1).expand(arg2=literal)
 
@@ -153,7 +155,7 @@ def test_map_unknown_arg_raises():
 
 def test_map_xcom_arg():
     """Test that dependencies are correct when mapping with an XComArg"""
-    with DAG("test-dag", start_date=DEFAULT_DATE):
+    with DAG("test-dag", schedule=None, start_date=DEFAULT_DATE):
         task1 = BaseOperator(task_id="op1")
         mapped = MockOperator.partial(task_id="task_2").expand(arg2=task1.output)
         finish = MockOperator(task_id="finish")
@@ -220,6 +222,15 @@ def test_partial_on_class_invalid_ctor_args() -> None:
     """
     with pytest.raises(TypeError, match=r"arguments 'foo', 'bar'"):
         MockOperator.partial(task_id="a", foo="bar", bar=2)
+
+
+def test_partial_on_invalid_pool_slots_raises() -> None:
+    """Test that when we pass an invalid value to pool_slots in partial(),
+
+    i.e. if the value is not an integer, an error is raised at import time."""
+
+    with pytest.raises(TypeError, match="'<' not supported between instances of 'str' and 'int'"):
+        MockOperator.partial(task_id="pool_slots_test", pool="test", pool_slots="a").expand(arg1=[1, 2, 3])
 
 
 @pytest.mark.parametrize(
@@ -625,12 +636,39 @@ def _create_mapped_with_name_template_classic(*, task_id, map_names, template):
 
 
 def _create_mapped_with_name_template_taskflow(*, task_id, map_names, template):
-    from airflow.operators.python import get_current_context
+    from airflow.providers.standard.operators.python import get_current_context
 
     @task(task_id=task_id, map_index_template=template)
     def task1(map_name):
         context = get_current_context()
         context["map_name"] = map_name
+
+    return task1.expand(map_name=map_names)
+
+
+def _create_named_map_index_renders_on_failure_classic(*, task_id, map_names, template):
+    class HasMapName(BaseOperator):
+        def __init__(self, *, map_name: str, **kwargs):
+            super().__init__(**kwargs)
+            self.map_name = map_name
+
+        def execute(self, context):
+            context["map_name"] = self.map_name
+            raise AirflowSkipException("Imagine this task failed!")
+
+    return HasMapName.partial(task_id=task_id, map_index_template=template).expand(
+        map_name=map_names,
+    )
+
+
+def _create_named_map_index_renders_on_failure_taskflow(*, task_id, map_names, template):
+    from airflow.providers.standard.operators.python import get_current_context
+
+    @task(task_id=task_id, map_index_template=template)
+    def task1(map_name):
+        context = get_current_context()
+        context["map_name"] = map_name
+        raise AirflowSkipException("Imagine this task failed!")
 
     return task1.expand(map_name=map_names)
 
@@ -649,6 +687,8 @@ def _create_mapped_with_name_template_taskflow(*, task_id, map_names, template):
     [
         pytest.param(_create_mapped_with_name_template_classic, id="classic"),
         pytest.param(_create_mapped_with_name_template_taskflow, id="taskflow"),
+        pytest.param(_create_named_map_index_renders_on_failure_classic, id="classic-failure"),
+        pytest.param(_create_named_map_index_renders_on_failure_taskflow, id="taskflow-failure"),
     ],
 )
 def test_expand_mapped_task_instance_with_named_index(
@@ -679,6 +719,30 @@ def test_expand_mapped_task_instance_with_named_index(
     ).all()
 
     assert indices == expected_rendered_names
+
+
+@pytest.mark.parametrize(
+    "create_mapped_task",
+    [
+        pytest.param(_create_mapped_with_name_template_classic, id="classic"),
+        pytest.param(_create_mapped_with_name_template_taskflow, id="taskflow"),
+    ],
+)
+def test_expand_mapped_task_task_instance_mutation_hook(dag_maker, session, create_mapped_task) -> None:
+    """Test that the tast_instance_mutation_hook is called."""
+    expected_map_index = [0, 1, 2]
+
+    with dag_maker(session=session):
+        task1 = BaseOperator(task_id="op1")
+        mapped = MockOperator.partial(task_id="task_2").expand(arg2=task1.output)
+
+    dr = dag_maker.create_dagrun()
+
+    with mock.patch("airflow.settings.task_instance_mutation_hook") as mock_hook:
+        expand_mapped_task(mapped, dr.run_id, task1.task_id, length=len(expected_map_index), session=session)
+
+        for index, call in enumerate(mock_hook.call_args_list):
+            assert call.args[0].map_index == expected_map_index[index]
 
 
 @pytest.mark.parametrize(
@@ -767,7 +831,7 @@ def test_all_xcomargs_from_mapped_tasks_are_consumable(dag_maker, session):
 
 
 def test_task_mapping_with_task_group_context():
-    with DAG("test-dag", start_date=DEFAULT_DATE) as dag:
+    with DAG("test-dag", schedule=None, start_date=DEFAULT_DATE) as dag:
         task1 = BaseOperator(task_id="op1")
         finish = MockOperator(task_id="finish")
 
@@ -788,7 +852,7 @@ def test_task_mapping_with_task_group_context():
 
 
 def test_task_mapping_with_explicit_task_group():
-    with DAG("test-dag", start_date=DEFAULT_DATE) as dag:
+    with DAG("test-dag", schedule=None, start_date=DEFAULT_DATE) as dag:
         task1 = BaseOperator(task_id="op1")
         finish = MockOperator(task_id="finish")
 
@@ -887,7 +951,6 @@ class TestMappedSetupTeardown:
                 t = my_teardown.expand(op_args=my_setup.output)
                 with t.as_teardown(setups=my_setup):
                     my_work(my_setup.output)
-            return dag
 
         dr = dag.test()
         states = self.get_states(dr)
@@ -1658,8 +1721,7 @@ class TestMappedSetupTeardown:
                 return n * 2
 
             @task
-            def last(n):
-                ...
+            def last(n): ...
 
             @task_group
             def group(n: int) -> None:
@@ -1686,8 +1748,7 @@ class TestMappedSetupTeardown:
                 return n * 2
 
             @task
-            def last(n):
-                ...
+            def last(n): ...
 
             @task_group
             def group(n: int) -> None:

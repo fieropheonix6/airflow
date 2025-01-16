@@ -21,7 +21,7 @@ import abc
 import enum
 import logging
 import sys
-from io import IOBase
+from io import TextIOBase, UnsupportedOperation
 from logging import Handler, StreamHandler
 from typing import IO, TYPE_CHECKING, Any, Optional, TypeVar, cast
 
@@ -36,7 +36,8 @@ ANSI_ESCAPE = re2.compile(r"\x1B[@-_][0-?]*[ -/]*[@-~]")
 
 # Private: A sentinel objects
 class SetContextPropagate(enum.Enum):
-    """Sentinel objects for log propagation contexts.
+    """
+    Sentinel objects for log propagation contexts.
 
     :meta private:
     """
@@ -78,6 +79,7 @@ class LoggingMixin:
 
     def __init__(self, context=None):
         self._set_context(context)
+        super().__init__()
 
     @staticmethod
     def _create_logger_name(
@@ -85,7 +87,8 @@ class LoggingMixin:
         log_config_logger_name: str | None = None,
         class_logger_name: str | None = None,
     ) -> str:
-        """Generate a logger name for the given `logged_class`.
+        """
+        Generate a logger name for the given `logged_class`.
 
         By default, this function returns the `class_logger_name` as logger name. If it is not provided,
         the {class.__module__}.{class.__name__} is returned instead. When a `parent_logger_name` is provided,
@@ -147,18 +150,39 @@ class ExternalLoggingMixin:
 
 # We have to ignore typing errors here because Python I/O classes are a mess, and they do not
 # have the same type hierarchy defined as the `typing.IO` - they violate Liskov Substitution Principle
-# While it is ok to make your class derive from IOBase (and its good thing to do as they provide
+# While it is ok to make your class derive from TextIOBase (and its good thing to do as they provide
 # base implementation for IO-implementing classes, it's impossible to make them work with
 # IO generics (and apparently it has not even been intended)
 # See more: https://giters.com/python/typeshed/issues/6077
-class StreamLogWriter(IOBase, IO[str]):  # type: ignore[misc]
+class StreamLogWriter(TextIOBase, IO[str]):  # type: ignore[misc]
     """
     Allows to redirect stdout and stderr to logger.
 
-    :param log: The log level method to write to, ie. log.debug, log.warning
+    :param logger: The logging.Logger instance to write to
+    :param level: The log level method to write to, ie. logging.DEBUG, logging.WARNING
     """
 
-    encoding: None = None
+    encoding = "undefined"
+
+    @property
+    def mode(self):
+        return "w"
+
+    @property
+    def name(self):
+        return f"<logger: {self.logger.name}>"
+
+    def writable(self):
+        return True
+
+    def readable(self):
+        return False
+
+    def seekable(self):
+        return False
+
+    def fileno(self):
+        raise UnsupportedOperation("fileno")
 
     def __init__(self, logger, level):
         self.logger = logger
@@ -193,11 +217,14 @@ class StreamLogWriter(IOBase, IO[str]):  # type: ignore[misc]
 
         :param message: message to log
         """
-        if not message.endswith("\n"):
+        if message.endswith("\n"):
+            message = message.rstrip()
             self._buffer += message
-        else:
-            self._buffer += message.rstrip()
             self.flush()
+        else:
+            self._buffer += message
+
+        return len(message)
 
     def flush(self):
         """Ensure all logging output has been flushed."""
@@ -227,7 +254,7 @@ class RedirectStdHandler(StreamHandler):
 
     def __init__(self, stream):
         if not isinstance(stream, str):
-            raise Exception(
+            raise TypeError(
                 "Cannot use file like objects. Use 'stdout' or 'stderr' as a str and without 'ext://'."
             )
 

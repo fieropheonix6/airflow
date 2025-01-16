@@ -16,14 +16,13 @@
 # under the License.
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 from unittest.mock import MagicMock, Mock, patch
 
 import pytest
-from flask import Flask
-from flask_appbuilder.menu import Menu
 
-from airflow.auth.managers.base_auth_manager import BaseAuthManager, ResourceMethod
+from airflow.auth.managers.base_auth_manager import BaseAuthManager
+from airflow.auth.managers.models.base_user import BaseUser
 from airflow.auth.managers.models.resource_details import (
     ConnectionDetails,
     DagDetails,
@@ -31,22 +30,30 @@ from airflow.auth.managers.models.resource_details import (
     VariableDetails,
 )
 from airflow.exceptions import AirflowException
-from airflow.security import permissions
-from airflow.www.extensions.init_appbuilder import init_appbuilder
-from airflow.www.security_manager import AirflowSecurityManagerV2
 
 if TYPE_CHECKING:
-    from airflow.auth.managers.models.base_user import BaseUser
+    from flask_appbuilder.menu import MenuItem
+
+    from airflow.auth.managers.base_auth_manager import ResourceMethod
     from airflow.auth.managers.models.resource_details import (
         AccessView,
+        AssetDetails,
         ConfigurationDetails,
         DagAccessEntity,
-        DatasetDetails,
     )
+    from airflow.www.extensions.init_appbuilder import AirflowAppBuilder
 
 
-class EmptyAuthManager(BaseAuthManager):
+class EmptyAuthManager(BaseAuthManager[BaseUser]):
+    appbuilder: AirflowAppBuilder | None = None
+
     def get_user(self) -> BaseUser:
+        raise NotImplementedError()
+
+    def deserialize_user(self, token: dict[str, Any]) -> BaseUser:
+        raise NotImplementedError()
+
+    def serialize_user(self, user: BaseUser) -> dict[str, Any]:
         raise NotImplementedError()
 
     def is_authorized_configuration(
@@ -77,8 +84,8 @@ class EmptyAuthManager(BaseAuthManager):
     ) -> bool:
         raise NotImplementedError()
 
-    def is_authorized_dataset(
-        self, *, method: ResourceMethod, details: DatasetDetails | None = None, user: BaseUser | None = None
+    def is_authorized_asset(
+        self, *, method: ResourceMethod, details: AssetDetails | None = None, user: BaseUser | None = None
     ) -> bool:
         raise NotImplementedError()
 
@@ -95,6 +102,11 @@ class EmptyAuthManager(BaseAuthManager):
     def is_authorized_view(self, *, access_view: AccessView, user: BaseUser | None = None) -> bool:
         raise NotImplementedError()
 
+    def is_authorized_custom_view(
+        self, *, method: ResourceMethod | str, resource_name: str, user: BaseUser | None = None
+    ):
+        raise NotImplementedError()
+
     def is_logged_in(self) -> bool:
         raise NotImplementedError()
 
@@ -104,17 +116,13 @@ class EmptyAuthManager(BaseAuthManager):
     def get_url_logout(self) -> str:
         raise NotImplementedError()
 
+    def filter_permitted_menu_items(self, menu_items: list[MenuItem]) -> list[MenuItem]:
+        raise NotImplementedError()
+
 
 @pytest.fixture
 def auth_manager():
-    return EmptyAuthManager(None)
-
-
-@pytest.fixture
-def auth_manager_with_appbuilder():
-    flask_app = Flask(__name__)
-    appbuilder = init_appbuilder(flask_app)
-    return EmptyAuthManager(appbuilder)
+    return EmptyAuthManager()
 
 
 class TestBaseAuthManager:
@@ -123,6 +131,9 @@ class TestBaseAuthManager:
 
     def test_get_api_endpoints_return_none(self, auth_manager):
         assert auth_manager.get_api_endpoints() is None
+
+    def test_get_fastapi_app_return_none(self, auth_manager):
+        assert auth_manager.get_fastapi_app() is None
 
     def test_get_user_name(self, auth_manager):
         user = Mock()
@@ -153,13 +164,6 @@ class TestBaseAuthManager:
 
     def test_get_url_user_profile_return_none(self, auth_manager):
         assert auth_manager.get_url_user_profile() is None
-
-    def test_is_authorized_custom_view_raise_exception(self, auth_manager):
-        with pytest.raises(AirflowException, match="The resource `.*` does not exist in the environment."):
-            auth_manager.is_authorized_custom_view(
-                fab_action_name=permissions.ACTION_CAN_READ,
-                fab_resource_name=permissions.RESOURCE_MY_PASSWORD,
-            )
 
     @pytest.mark.parametrize(
         "return_values, expected",
@@ -241,10 +245,6 @@ class TestBaseAuthManager:
         )
         assert result == expected
 
-    @pytest.mark.db_test
-    def test_security_manager_return_default_security_manager(self, auth_manager_with_appbuilder):
-        assert isinstance(auth_manager_with_appbuilder.security_manager, AirflowSecurityManagerV2)
-
     @pytest.mark.parametrize(
         "access_all, access_per_dag, dag_ids, expected",
         [
@@ -297,22 +297,3 @@ class TestBaseAuthManager:
         session.execute.return_value = dags
         result = auth_manager.get_permitted_dag_ids(user=user, session=session)
         assert result == expected
-
-    @patch.object(EmptyAuthManager, "security_manager")
-    def test_filter_permitted_menu_items(self, mock_security_manager, auth_manager):
-        mock_security_manager.has_access.side_effect = [True, False, True, True, False]
-
-        menu = Menu()
-        menu.add_link("item1")
-        menu.add_link("item2")
-        menu.add_link("item3")
-        menu.add_link("item3.1", category="item3")
-        menu.add_link("item3.2", category="item3")
-
-        result = auth_manager.filter_permitted_menu_items(menu.get_list())
-
-        assert len(result) == 2
-        assert result[0].name == "item1"
-        assert result[1].name == "item3"
-        assert len(result[1].childs) == 1
-        assert result[1].childs[0].name == "item3.1"

@@ -48,7 +48,8 @@ cpus
     Number of CPUs to assign to the container. This value gets multiplied with 1024.
 docker_url
     URL of the host running the docker daemon.
-    Default is unix://var/run/docker.sock
+    Default is the value of the ``DOCKER_HOST`` environment variable or unix://var/run/docker.sock
+    if it is unset.
 environment
     Environment variables to set in the container. (templated)
 private_environment
@@ -161,7 +162,7 @@ ulimits
 Usage Example
 -------------
 
-.. exampleinclude:: /../../tests/system/providers/docker/example_taskflow_api_docker_virtualenv.py
+.. exampleinclude:: /../../providers/tests/system/docker/example_taskflow_api_docker_virtualenv.py
     :language: python
     :start-after: [START transform_docker]
     :end-before: [END transform_docker]

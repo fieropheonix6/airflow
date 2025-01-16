@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Various utils to prepare docker and docker compose commands."""
+
 from __future__ import annotations
 
 import copy
@@ -22,6 +23,7 @@ import json
 import os
 import re
 import sys
+from functools import lru_cache
 from subprocess import DEVNULL, CalledProcessError, CompletedProcess
 from typing import TYPE_CHECKING
 
@@ -50,7 +52,6 @@ from airflow_breeze.global_constants import (
     DOCKER_DEFAULT_PLATFORM,
     MIN_DOCKER_COMPOSE_VERSION,
     MIN_DOCKER_VERSION,
-    SEQUENTIAL_EXECUTOR,
 )
 from airflow_breeze.utils.console import Output, get_console
 from airflow_breeze.utils.run_utils import (
@@ -90,9 +91,12 @@ VOLUMES_FOR_SELECTED_MOUNTS = [
     ("generated", "/opt/airflow/generated"),
     ("hooks", "/opt/airflow/hooks"),
     ("logs", "/root/airflow/logs"),
+    ("providers", "/opt/airflow/providers"),
+    ("task_sdk", "/opt/airflow/task_sdk"),
     ("pyproject.toml", "/opt/airflow/pyproject.toml"),
     ("scripts", "/opt/airflow/scripts"),
     ("scripts/docker/entrypoint_ci.sh", "/entrypoint"),
+    ("tests_common", "/opt/airflow/tests_common"),
     ("tests", "/opt/airflow/tests"),
     ("helm_tests", "/opt/airflow/helm_tests"),
     ("kubernetes_tests", "/opt/airflow/kubernetes_tests"),
@@ -201,7 +205,8 @@ def check_docker_version(quiet: bool = False):
             dry_run_override=False,
         )
         if docker_version_result.returncode == 0:
-            docker_version = docker_version_result.stdout.strip()
+            regex = re.compile(r"^(" + version.VERSION_PATTERN + r").*$", re.VERBOSE | re.IGNORECASE)
+            docker_version = re.sub(regex, r"\1", docker_version_result.stdout.strip())
         if docker_version == "":
             get_console().print(
                 f"""
@@ -380,12 +385,15 @@ def prepare_base_build_command(image_params: CommonBuildParams) -> list[str]:
             ]
         )
         if not image_params.docker_host:
+            builder = get_and_use_docker_context(image_params.builder)
             build_command_param.extend(
                 [
                     "--builder",
-                    get_and_use_docker_context(image_params.builder),
+                    builder,
                 ]
             )
+            if builder != "default":
+                build_command_param.append("--load")
     else:
         build_command_param.append("build")
     return build_command_param
@@ -409,7 +417,7 @@ def prepare_docker_build_command(
     final_command.extend(image_params.common_docker_build_flags)
     final_command.extend(["--pull"])
     final_command.extend(image_params.prepare_arguments_for_docker_build_command())
-    final_command.extend(["-t", image_params.airflow_image_name_with_tag, "--target", "main", "."])
+    final_command.extend(["-t", image_params.airflow_image_name, "--target", "main", "."])
     final_command.extend(
         ["-f", "Dockerfile" if isinstance(image_params, BuildProdParams) else "Dockerfile.ci"]
     )
@@ -425,7 +433,7 @@ def construct_docker_push_command(
     :param image_params: parameters of the image
     :return: Command to run as list of string
     """
-    return ["docker", "push", image_params.airflow_image_name_with_tag]
+    return ["docker", "push", image_params.airflow_image_name]
 
 
 def build_cache(image_params: CommonBuildParams, output: Output | None) -> RunCommandResult:
@@ -498,6 +506,7 @@ def check_executable_entrypoint_permissions(quiet: bool = False):
         get_console().print("[success]Executable permissions on entrypoints are OK[/]")
 
 
+@lru_cache
 def perform_environment_checks(quiet: bool = False):
     check_docker_is_running()
     check_docker_version(quiet)
@@ -511,37 +520,42 @@ def get_docker_syntax_version() -> str:
     return (AIRFLOW_SOURCES_ROOT / "Dockerfile").read_text().splitlines()[0]
 
 
-def warm_up_docker_builder(image_params: CommonBuildParams):
+def warm_up_docker_builder(image_params_list: list[CommonBuildParams]):
     from airflow_breeze.utils.path_utils import AIRFLOW_SOURCES_ROOT
 
-    docker_context = get_and_use_docker_context(image_params.builder)
-    if docker_context == "default":
-        return
-    docker_syntax = get_docker_syntax_version()
-    get_console().print(f"[info]Warming up the {docker_context} builder for syntax: {docker_syntax}")
-    warm_up_image_param = copy.deepcopy(image_params)
-    warm_up_image_param.image_tag = "warmup"
-    warm_up_image_param.push = False
-    build_command = prepare_base_build_command(image_params=warm_up_image_param)
-    warm_up_command = []
-    warm_up_command.extend(["docker"])
-    warm_up_command.extend(build_command)
-    warm_up_command.extend(["--platform", image_params.platform, "-"])
-    warm_up_command_result = run_command(
-        warm_up_command,
-        input=f"""{docker_syntax}
-FROM scratch
-LABEL description="test warmup image"
-""",
-        cwd=AIRFLOW_SOURCES_ROOT,
-        text=True,
-        check=False,
-    )
-    if warm_up_command_result.returncode != 0:
-        get_console().print(
-            f"[warning]Warning {warm_up_command_result.returncode} when warming up builder:"
-            f" {warm_up_command_result.stdout} {warm_up_command_result.stderr}"
+    platforms: set[str] = set()
+    for image_params in image_params_list:
+        platforms.add(image_params.platform)
+    get_console().print(f"[info]Warming up the builder for platforms: {platforms}")
+    for platform in platforms:
+        docker_context = get_and_use_docker_context(image_params.builder)
+        if docker_context == "default":
+            return
+        docker_syntax = get_docker_syntax_version()
+        get_console().print(f"[info]Warming up the {docker_context} builder for syntax: {docker_syntax}")
+        warm_up_image_param = copy.deepcopy(image_params_list[0])
+        warm_up_image_param.push = False
+        warm_up_image_param.platform = platform
+        build_command = prepare_base_build_command(image_params=warm_up_image_param)
+        warm_up_command = []
+        warm_up_command.extend(["docker"])
+        warm_up_command.extend(build_command)
+        warm_up_command.extend(["--platform", platform, "-"])
+        warm_up_command_result = run_command(
+            warm_up_command,
+            input=f"""{docker_syntax}
+    FROM scratch
+    LABEL description="test warmup image"
+    """,
+            cwd=AIRFLOW_SOURCES_ROOT,
+            text=True,
+            check=False,
         )
+        if warm_up_command_result.returncode != 0:
+            get_console().print(
+                f"[warning]Warning {warm_up_command_result.returncode} when warming up builder:"
+                f" {warm_up_command_result.stdout} {warm_up_command_result.stderr}"
+            )
 
 
 OWNERSHIP_CLEANUP_DOCKER_TAG = (
@@ -602,7 +616,7 @@ def remove_docker_networks(networks: list[str] | None = None) -> None:
 # and it does not require the user to belong to the "docker" group.
 # The "default" context is the traditional one that requires "/var/run/docker.sock" to be writeable by the
 # user running the docker command.
-PREFERRED_CONTEXTS = ["desktop-linux", "default"]
+PREFERRED_CONTEXTS = ["orbstack", "desktop-linux", "default"]
 
 
 def autodetect_docker_context():
@@ -638,7 +652,7 @@ def autodetect_docker_context():
         # On Windows, some contexts are used for WSL2. We don't want to use those.
         if context["DockerEndpoint"] == "npipe:////./pipe/dockerDesktopLinuxEngine":
             continue
-        get_console().print(f"[info]Using {preferred_context_name} as context.[/]")
+        get_console().print(f"[info]Using {preferred_context_name!r} as context.[/]")
         return preferred_context_name
     fallback_context = next(iter(known_contexts))
     get_console().print(
@@ -651,11 +665,10 @@ def autodetect_docker_context():
 def get_and_use_docker_context(context: str):
     if context == "autodetect":
         context = autodetect_docker_context()
-    output = run_command(["docker", "context", "use", context], check=False)
-    if output.returncode != 0:
-        get_console().print(
-            f"[warning] Could no use the context {context}. Continuing with current context[/]"
-        )
+    run_command(["docker", "context", "create", context], check=False)
+    output = run_command(["docker", "context", "use", context], check=False, stdout=DEVNULL, stderr=DEVNULL)
+    if output.returncode:
+        get_console().print(f"[warning]Could no use context {context!r}. Continuing with current context[/]")
     return context
 
 
@@ -710,16 +723,13 @@ def execute_command_in_shell(
     :param command:
     """
     shell_params.backend = "sqlite"
-    shell_params.executor = SEQUENTIAL_EXECUTOR
     shell_params.forward_ports = False
     shell_params.project_name = project_name
     shell_params.quiet = True
     shell_params.skip_environment_initialization = True
     shell_params.skip_image_upgrade_check = True
     if get_verbose():
-        get_console().print(f"[warning]Backend forced to: sqlite and {SEQUENTIAL_EXECUTOR}[/]")
         get_console().print("[warning]Sqlite DB is cleaned[/]")
-        get_console().print(f"[warning]Executor forced to {SEQUENTIAL_EXECUTOR}[/]")
         get_console().print("[warning]Disabled port forwarding[/]")
         get_console().print(f"[warning]Project name set to: {project_name}[/]")
         get_console().print("[warning]Forced quiet mode[/]")
@@ -761,13 +771,6 @@ def enter_shell(shell_params: ShellParams, output: Output | None = None) -> RunC
         )
         bring_compose_project_down(preserve_volumes=False, shell_params=shell_params)
 
-    if shell_params.backend == "sqlite" and shell_params.executor != SEQUENTIAL_EXECUTOR:
-        get_console().print(
-            f"\n[warning]backend: sqlite is not "
-            f"compatible with executor: {shell_params.executor}. "
-            f"Changing the executor to {SEQUENTIAL_EXECUTOR}.\n"
-        )
-        shell_params.executor = SEQUENTIAL_EXECUTOR
     if shell_params.restart:
         bring_compose_project_down(preserve_volumes=False, shell_params=shell_params)
     if shell_params.include_mypy_volume:

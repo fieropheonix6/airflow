@@ -19,6 +19,7 @@
 Example DAG demonstrating the usage of the classic Python operators to execute Python functions natively and
 within a virtual environment.
 """
+
 from __future__ import annotations
 
 import logging
@@ -29,11 +30,10 @@ from pprint import pprint
 import pendulum
 
 from airflow.models.dag import DAG
-from airflow.operators.python import (
+from airflow.providers.standard.operators.python import (
     ExternalPythonOperator,
     PythonOperator,
     PythonVirtualenvOperator,
-    is_venv_installed,
 )
 
 log = logging.getLogger(__name__)
@@ -51,8 +51,12 @@ with DAG(
     # [START howto_operator_python]
     def print_context(ds=None, **kwargs):
         """Print the Airflow context and ds variable from the context."""
+        print("::group::All kwargs")
         pprint(kwargs)
+        print("::endgroup::")
+        print("::group::Context variable ds")
         print(ds)
+        print("::endgroup::")
         return "Whatever you return gets printed in the logs"
 
     run_this = PythonOperator(task_id="print_the_context", python_callable=print_context)
@@ -84,63 +88,60 @@ with DAG(
         run_this >> log_the_sql >> sleeping_task
     # [END howto_operator_python_kwargs]
 
-    if not is_venv_installed():
-        log.warning("The virtalenv_python example task requires virtualenv, please install it.")
-    else:
-        # [START howto_operator_python_venv]
-        def callable_virtualenv():
-            """
-            Example function that will be performed in a virtual environment.
+    # [START howto_operator_python_venv]
+    def callable_virtualenv():
+        """
+        Example function that will be performed in a virtual environment.
 
-            Importing at the module level ensures that it will not attempt to import the
-            library before it is installed.
-            """
-            from time import sleep
+        Importing at the function level ensures that it will not attempt to import the
+        library before it is installed.
+        """
+        from time import sleep
 
-            from colorama import Back, Fore, Style
+        from colorama import Back, Fore, Style
 
-            print(Fore.RED + "some red text")
-            print(Back.GREEN + "and with a green background")
-            print(Style.DIM + "and in dim text")
-            print(Style.RESET_ALL)
-            for _ in range(4):
-                print(Style.DIM + "Please wait...", flush=True)
-                sleep(1)
-            print("Finished")
+        print(Fore.RED + "some red text")
+        print(Back.GREEN + "and with a green background")
+        print(Style.DIM + "and in dim text")
+        print(Style.RESET_ALL)
+        for _ in range(4):
+            print(Style.DIM + "Please wait...", flush=True)
+            sleep(1)
+        print("Finished")
 
-        virtualenv_task = PythonVirtualenvOperator(
-            task_id="virtualenv_python",
-            python_callable=callable_virtualenv,
-            requirements=["colorama==0.4.0"],
-            system_site_packages=False,
-        )
-        # [END howto_operator_python_venv]
+    virtualenv_task = PythonVirtualenvOperator(
+        task_id="virtualenv_python",
+        python_callable=callable_virtualenv,
+        requirements=["colorama==0.4.0"],
+        system_site_packages=False,
+    )
+    # [END howto_operator_python_venv]
 
-        sleeping_task >> virtualenv_task
+    sleeping_task >> virtualenv_task
 
-        # [START howto_operator_external_python]
-        def callable_external_python():
-            """
-            Example function that will be performed in a virtual environment.
+    # [START howto_operator_external_python]
+    def callable_external_python():
+        """
+        Example function that will be performed in a virtual environment.
 
-            Importing at the module level ensures that it will not attempt to import the
-            library before it is installed.
-            """
-            import sys
-            from time import sleep
+        Importing at the module level ensures that it will not attempt to import the
+        library before it is installed.
+        """
+        import sys
+        from time import sleep
 
-            print(f"Running task via {sys.executable}")
-            print("Sleeping")
-            for _ in range(4):
-                print("Please wait...", flush=True)
-                sleep(1)
-            print("Finished")
+        print(f"Running task via {sys.executable}")
+        print("Sleeping")
+        for _ in range(4):
+            print("Please wait...", flush=True)
+            sleep(1)
+        print("Finished")
 
-        external_python_task = ExternalPythonOperator(
-            task_id="external_python",
-            python_callable=callable_external_python,
-            python=PATH_TO_PYTHON_BINARY,
-        )
-        # [END howto_operator_external_python]
+    external_python_task = ExternalPythonOperator(
+        task_id="external_python",
+        python_callable=callable_external_python,
+        python=PATH_TO_PYTHON_BINARY,
+    )
+    # [END howto_operator_external_python]
 
-        run_this >> external_python_task >> virtualenv_task
+    run_this >> external_python_task >> virtualenv_task

@@ -16,8 +16,10 @@
 # specific language governing permissions and limitations
 # under the License.
 """Example DAG demonstrating the EmptyOperator and a custom EmptySkipOperator which skips by default."""
+
 from __future__ import annotations
 
+import datetime
 from typing import TYPE_CHECKING
 
 import pendulum
@@ -29,7 +31,7 @@ from airflow.operators.empty import EmptyOperator
 from airflow.utils.trigger_rule import TriggerRule
 
 if TYPE_CHECKING:
-    from airflow.utils.context import Context
+    from airflow.sdk.definitions.context import Context
 
 
 # Create some placeholder operators
@@ -62,6 +64,7 @@ def create_test_pipeline(suffix, trigger_rule):
 
 with DAG(
     dag_id="example_skip_dag",
+    schedule=datetime.timedelta(days=1),
     start_date=pendulum.datetime(2021, 1, 1, tz="UTC"),
     catchup=False,
     tags=["example"],

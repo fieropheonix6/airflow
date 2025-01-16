@@ -25,7 +25,6 @@ from sqlalchemy import Boolean, Column, Integer, String, Text, delete, select
 from sqlalchemy.dialects.mysql import MEDIUMTEXT
 from sqlalchemy.orm import declared_attr, reconstructor, synonym
 
-from airflow.api_internal.internal_api_call import internal_api_call
 from airflow.configuration import ensure_secrets_loaded
 from airflow.models.base import ID_LEN, Base
 from airflow.models.crypto import get_fernet
@@ -110,12 +109,13 @@ class Variable(Base, LoggingMixin):
         :param description: Default value to set Description of the Variable
         :param deserialize_json: Store this as a JSON encoded value in the DB
             and un-encode it when retrieving a value
+        :param session: Session
         :return: Mixed
         """
         obj = Variable.get(key, default_var=None, deserialize_json=deserialize_json)
         if obj is None:
             if default is not None:
-                Variable.set(key, default, description=description, serialize_json=deserialize_json)
+                Variable.set(key=key, value=default, description=description, serialize_json=deserialize_json)
                 return default
             else:
                 raise ValueError("Default Value must be set")
@@ -129,7 +129,8 @@ class Variable(Base, LoggingMixin):
         default_var: Any = __NO_DEFAULT_SENTINEL,
         deserialize_json: bool = False,
     ) -> Any:
-        """Get a value for an Airflow Variable Key.
+        """
+        Get a value for an Airflow Variable Key.
 
         :param key: Variable Key
         :param default_var: Default value of the Variable if the Variable doesn't exist
@@ -152,7 +153,6 @@ class Variable(Base, LoggingMixin):
 
     @staticmethod
     @provide_session
-    @internal_api_call
     def set(
         key: str,
         value: Any,
@@ -160,7 +160,8 @@ class Variable(Base, LoggingMixin):
         serialize_json: bool = False,
         session: Session = None,
     ) -> None:
-        """Set a value for an Airflow Variable with a given Key.
+        """
+        Set a value for an Airflow Variable with a given Key.
 
         This operation overwrites an existing variable.
 
@@ -168,9 +169,10 @@ class Variable(Base, LoggingMixin):
         :param value: Value to set for the Variable
         :param description: Description of the Variable
         :param serialize_json: Serialize the value to a JSON string
+        :param session: Session
         """
         # check if the secret exists in the custom secrets' backend.
-        Variable.check_for_write_conflict(key)
+        Variable.check_for_write_conflict(key=key)
         if serialize_json:
             stored_value = json.dumps(value, indent=2)
         else:
@@ -186,20 +188,21 @@ class Variable(Base, LoggingMixin):
 
     @staticmethod
     @provide_session
-    @internal_api_call
     def update(
         key: str,
         value: Any,
         serialize_json: bool = False,
         session: Session = None,
     ) -> None:
-        """Update a given Airflow Variable with the Provided value.
+        """
+        Update a given Airflow Variable with the Provided value.
 
         :param key: Variable Key
         :param value: Value to set for the Variable
         :param serialize_json: Serialize the value to a JSON string
+        :param session: Session
         """
-        Variable.check_for_write_conflict(key)
+        Variable.check_for_write_conflict(key=key)
 
         if Variable.get_variable_from_secrets(key=key) is None:
             raise KeyError(f"Variable {key} does not exist")
@@ -207,13 +210,15 @@ class Variable(Base, LoggingMixin):
         if obj is None:
             raise AttributeError(f"Variable {key} does not exist in the Database and cannot be updated.")
 
-        Variable.set(key, value, description=obj.description, serialize_json=serialize_json)
+        Variable.set(
+            key=key, value=value, description=obj.description, serialize_json=serialize_json, session=session
+        )
 
     @staticmethod
     @provide_session
-    @internal_api_call
     def delete(key: str, session: Session = None) -> int:
-        """Delete an Airflow Variable for a given key.
+        """
+        Delete an Airflow Variable for a given key.
 
         :param key: Variable Keys
         """
@@ -229,7 +234,8 @@ class Variable(Base, LoggingMixin):
 
     @staticmethod
     def check_for_write_conflict(key: str) -> None:
-        """Log a warning if a variable exists outside the metastore.
+        """
+        Log a warning if a variable exists outside the metastore.
 
         If we try to write a variable to the metastore while the same key
         exists in an environment variable or custom secrets backend, then

@@ -70,17 +70,50 @@ class TestWorker:
                 "executor": "CeleryExecutor",
                 "workers": {
                     "extraContainers": [
-                        {"name": "test-container", "image": "test-registry/test-repo:test-tag"}
+                        {"name": "{{ .Chart.Name }}", "image": "test-registry/test-repo:test-tag"}
                     ],
                 },
             },
             show_only=["templates/workers/worker-deployment.yaml"],
         )
 
-        assert {
-            "name": "test-container",
+        assert jmespath.search("spec.template.spec.containers[-1]", docs[0]) == {
+            "name": "airflow",
             "image": "test-registry/test-repo:test-tag",
-        } == jmespath.search("spec.template.spec.containers[-1]", docs[0])
+        }
+
+    def test_persistent_volume_claim_retention_policy(self):
+        docs = render_chart(
+            values={
+                "executor": "CeleryExecutor",
+                "workers": {
+                    "persistence": {
+                        "enabled": True,
+                        "persistentVolumeClaimRetentionPolicy": {"whenDeleted": "Delete"},
+                    }
+                },
+            },
+            show_only=["templates/workers/worker-deployment.yaml"],
+        )
+
+        assert jmespath.search("spec.persistentVolumeClaimRetentionPolicy", docs[0]) == {
+            "whenDeleted": "Delete",
+        }
+
+    def test_should_template_extra_containers(self):
+        docs = render_chart(
+            values={
+                "executor": "CeleryExecutor",
+                "workers": {
+                    "extraContainers": [{"name": "{{ .Release.Name }}-test-container"}],
+                },
+            },
+            show_only=["templates/workers/worker-deployment.yaml"],
+        )
+
+        assert jmespath.search("spec.template.spec.containers[-1]", docs[0]) == {
+            "name": "release-name-test-container"
+        }
 
     def test_disable_wait_for_migration(self):
         docs = render_chart(
@@ -108,10 +141,24 @@ class TestWorker:
             show_only=["templates/workers/worker-deployment.yaml"],
         )
 
-        assert {
+        assert jmespath.search("spec.template.spec.initContainers[-1]", docs[0]) == {
             "name": "test-init-container",
             "image": "test-registry/test-repo:test-tag",
-        } == jmespath.search("spec.template.spec.initContainers[-1]", docs[0])
+        }
+
+    def test_should_template_extra_init_containers(self):
+        docs = render_chart(
+            values={
+                "workers": {
+                    "extraInitContainers": [{"name": "{{ .Release.Name }}-test-init-container"}],
+                },
+            },
+            show_only=["templates/workers/worker-deployment.yaml"],
+        )
+
+        assert jmespath.search("spec.template.spec.initContainers[-1]", docs[0]) == {
+            "name": "release-name-test-init-container"
+        }
 
     def test_should_add_extra_volume_and_extra_volume_mount(self):
         docs = render_chart(
@@ -127,12 +174,14 @@ class TestWorker:
             show_only=["templates/workers/worker-deployment.yaml"],
         )
 
-        assert "test-volume-airflow" == jmespath.search("spec.template.spec.volumes[0].name", docs[0])
-        assert "test-volume-airflow" == jmespath.search(
-            "spec.template.spec.containers[0].volumeMounts[0].name", docs[0]
+        assert jmespath.search("spec.template.spec.volumes[0].name", docs[0]) == "test-volume-airflow"
+        assert (
+            jmespath.search("spec.template.spec.containers[0].volumeMounts[0].name", docs[0])
+            == "test-volume-airflow"
         )
-        assert "test-volume-airflow" == jmespath.search(
-            "spec.template.spec.initContainers[0].volumeMounts[-1].name", docs[0]
+        assert (
+            jmespath.search("spec.template.spec.initContainers[0].volumeMounts[-1].name", docs[0])
+            == "test-volume-airflow"
         )
 
     def test_should_add_global_volume_and_global_volume_mount(self):
@@ -144,16 +193,26 @@ class TestWorker:
             show_only=["templates/workers/worker-deployment.yaml"],
         )
 
-        assert "test-volume" == jmespath.search("spec.template.spec.volumes[0].name", docs[0])
-        assert "test-volume" == jmespath.search(
-            "spec.template.spec.containers[0].volumeMounts[0].name", docs[0]
+        assert jmespath.search("spec.template.spec.volumes[0].name", docs[0]) == "test-volume"
+        assert (
+            jmespath.search("spec.template.spec.containers[0].volumeMounts[0].name", docs[0]) == "test-volume"
         )
 
     def test_should_add_extraEnvs(self):
         docs = render_chart(
             values={
                 "workers": {
-                    "env": [{"name": "TEST_ENV_1", "value": "test_env_1"}],
+                    "env": [
+                        {"name": "TEST_ENV_1", "value": "test_env_1"},
+                        {
+                            "name": "TEST_ENV_2",
+                            "valueFrom": {"secretKeyRef": {"name": "my-secret", "key": "my-key"}},
+                        },
+                        {
+                            "name": "TEST_ENV_3",
+                            "valueFrom": {"configMapKeyRef": {"name": "my-config-map", "key": "my-key"}},
+                        },
+                    ],
                 },
             },
             show_only=["templates/workers/worker-deployment.yaml"],
@@ -162,6 +221,14 @@ class TestWorker:
         assert {"name": "TEST_ENV_1", "value": "test_env_1"} in jmespath.search(
             "spec.template.spec.containers[0].env", docs[0]
         )
+        assert {
+            "name": "TEST_ENV_2",
+            "valueFrom": {"secretKeyRef": {"name": "my-secret", "key": "my-key"}},
+        } in jmespath.search("spec.template.spec.containers[0].env", docs[0])
+        assert {
+            "name": "TEST_ENV_3",
+            "valueFrom": {"configMapKeyRef": {"name": "my-config-map", "key": "my-key"}},
+        } in jmespath.search("spec.template.spec.containers[0].env", docs[0])
 
     def test_should_add_extraEnvs_to_wait_for_migration_container(self):
         docs = render_chart(
@@ -202,8 +269,8 @@ class TestWorker:
             show_only=["templates/workers/worker-deployment.yaml"],
         )
 
-        assert "127.0.0.2" == jmespath.search("spec.template.spec.hostAliases[0].ip", docs[0])
-        assert "test.hostname" == jmespath.search("spec.template.spec.hostAliases[0].hostnames[0]", docs[0])
+        assert jmespath.search("spec.template.spec.hostAliases[0].ip", docs[0]) == "127.0.0.2"
+        assert jmespath.search("spec.template.spec.hostAliases[0].hostnames[0]", docs[0]) == "test.hostname"
 
     @pytest.mark.parametrize(
         "persistence, update_strategy, expected_update_strategy",
@@ -277,22 +344,31 @@ class TestWorker:
             show_only=["templates/workers/worker-deployment.yaml"],
         )
 
-        assert "StatefulSet" == jmespath.search("kind", docs[0])
-        assert "foo" == jmespath.search(
-            "spec.template.spec.affinity.nodeAffinity."
-            "requiredDuringSchedulingIgnoredDuringExecution."
-            "nodeSelectorTerms[0]."
-            "matchExpressions[0]."
-            "key",
-            docs[0],
+        assert jmespath.search("kind", docs[0]) == "StatefulSet"
+        assert (
+            jmespath.search(
+                "spec.template.spec.affinity.nodeAffinity."
+                "requiredDuringSchedulingIgnoredDuringExecution."
+                "nodeSelectorTerms[0]."
+                "matchExpressions[0]."
+                "key",
+                docs[0],
+            )
+            == "foo"
         )
-        assert "ssd" == jmespath.search(
-            "spec.template.spec.nodeSelector.diskType",
-            docs[0],
+        assert (
+            jmespath.search(
+                "spec.template.spec.nodeSelector.diskType",
+                docs[0],
+            )
+            == "ssd"
         )
-        assert "dynamic-pods" == jmespath.search(
-            "spec.template.spec.tolerations[0].key",
-            docs[0],
+        assert (
+            jmespath.search(
+                "spec.template.spec.tolerations[0].key",
+                docs[0],
+            )
+            == "dynamic-pods"
         )
 
     def test_affinity_tolerations_topology_spread_constraints_and_node_selector_precedence(self):
@@ -357,13 +433,16 @@ class TestWorker:
         )
 
         assert expected_affinity == jmespath.search("spec.template.spec.affinity", docs[0])
-        assert "ssd" == jmespath.search(
-            "spec.template.spec.nodeSelector.type",
-            docs[0],
+        assert (
+            jmespath.search(
+                "spec.template.spec.nodeSelector.type",
+                docs[0],
+            )
+            == "ssd"
         )
         tolerations = jmespath.search("spec.template.spec.tolerations", docs[0])
-        assert 1 == len(tolerations)
-        assert "dynamic-pods" == tolerations[0]["key"]
+        assert len(tolerations) == 1
+        assert tolerations[0]["key"] == "dynamic-pods"
         assert expected_topology_spread_constraints == jmespath.search(
             "spec.template.spec.topologySpreadConstraints[0]", docs[0]
         )
@@ -374,20 +453,23 @@ class TestWorker:
             show_only=["templates/workers/worker-deployment.yaml"],
         )
 
-        assert "airflow-scheduler" == jmespath.search(
-            "spec.template.spec.schedulerName",
-            docs[0],
+        assert (
+            jmespath.search(
+                "spec.template.spec.schedulerName",
+                docs[0],
+            )
+            == "airflow-scheduler"
         )
 
     def test_should_create_default_affinity(self):
         docs = render_chart(show_only=["templates/workers/worker-deployment.yaml"])
 
-        assert {"component": "worker"} == jmespath.search(
+        assert jmespath.search(
             "spec.template.spec.affinity.podAntiAffinity."
             "preferredDuringSchedulingIgnoredDuringExecution[0]."
             "podAffinityTerm.labelSelector.matchLabels",
             docs[0],
-        )
+        ) == {"component": "worker"}
 
     def test_runtime_class_name_values_are_configurable(self):
         docs = render_chart(
@@ -455,6 +537,24 @@ class TestWorker:
         livenessprobe = jmespath.search("spec.template.spec.containers[0].livenessProbe", docs[0])
         assert livenessprobe is None
 
+    def test_extra_init_container_restart_policy_is_configurable(self):
+        docs = render_chart(
+            values={
+                "workers": {
+                    "extraInitContainers": [
+                        {
+                            "name": "test-init-container",
+                            "image": "test-registry/test-repo:test-tag",
+                            "restartPolicy": "Always",
+                        }
+                    ]
+                },
+            },
+            show_only=["templates/workers/worker-deployment.yaml"],
+        )
+
+        assert jmespath.search("spec.template.spec.initContainers[1].restartPolicy", docs[0]) == "Always"
+
     @pytest.mark.parametrize(
         "log_values, expected_volume",
         [
@@ -498,25 +598,27 @@ class TestWorker:
             show_only=["templates/workers/worker-deployment.yaml"],
         )
         # main container
-        assert "128Mi" == jmespath.search("spec.template.spec.containers[0].resources.limits.memory", docs[0])
-        assert "200m" == jmespath.search("spec.template.spec.containers[0].resources.limits.cpu", docs[0])
+        assert jmespath.search("spec.template.spec.containers[0].resources.limits.memory", docs[0]) == "128Mi"
+        assert jmespath.search("spec.template.spec.containers[0].resources.limits.cpu", docs[0]) == "200m"
 
-        assert "169Mi" == jmespath.search(
-            "spec.template.spec.containers[0].resources.requests.memory", docs[0]
+        assert (
+            jmespath.search("spec.template.spec.containers[0].resources.requests.memory", docs[0]) == "169Mi"
         )
-        assert "300m" == jmespath.search("spec.template.spec.containers[0].resources.requests.cpu", docs[0])
+        assert jmespath.search("spec.template.spec.containers[0].resources.requests.cpu", docs[0]) == "300m"
 
         # initContainer wait-for-airflow-configurations
-        assert "128Mi" == jmespath.search(
-            "spec.template.spec.initContainers[0].resources.limits.memory", docs[0]
+        assert (
+            jmespath.search("spec.template.spec.initContainers[0].resources.limits.memory", docs[0])
+            == "128Mi"
         )
-        assert "200m" == jmespath.search("spec.template.spec.initContainers[0].resources.limits.cpu", docs[0])
+        assert jmespath.search("spec.template.spec.initContainers[0].resources.limits.cpu", docs[0]) == "200m"
 
-        assert "169Mi" == jmespath.search(
-            "spec.template.spec.initContainers[0].resources.requests.memory", docs[0]
+        assert (
+            jmespath.search("spec.template.spec.initContainers[0].resources.requests.memory", docs[0])
+            == "169Mi"
         )
-        assert "300m" == jmespath.search(
-            "spec.template.spec.initContainers[0].resources.requests.cpu", docs[0]
+        assert (
+            jmespath.search("spec.template.spec.initContainers[0].resources.requests.cpu", docs[0]) == "300m"
         )
 
     def test_worker_resources_are_not_added_by_default(self):
@@ -640,8 +742,8 @@ class TestWorker:
             show_only=["templates/workers/worker-deployment.yaml"],
         )
 
-        assert ["release-name"] == jmespath.search("spec.template.spec.containers[0].command", docs[0])
-        assert ["Helm"] == jmespath.search("spec.template.spec.containers[0].args", docs[0])
+        assert jmespath.search("spec.template.spec.containers[0].command", docs[0]) == ["release-name"]
+        assert jmespath.search("spec.template.spec.containers[0].args", docs[0]) == ["Helm"]
 
     def test_dags_gitsync_sidecar_and_init_container(self):
         docs = render_chart(
@@ -673,7 +775,7 @@ class TestWorker:
             values={"workers": {"persistence": {"annotations": {"foo": "bar"}}}},
             show_only=["templates/workers/worker-deployment.yaml"],
         )
-        assert {"foo": "bar"} == jmespath.search("spec.volumeClaimTemplates[0].metadata.annotations", docs[0])
+        assert jmespath.search("spec.volumeClaimTemplates[0].metadata.annotations", docs[0]) == {"foo": "bar"}
 
     def test_should_add_component_specific_annotations(self):
         docs = render_chart(
@@ -690,7 +792,7 @@ class TestWorker:
     @pytest.mark.parametrize(
         "globalScope, localScope, precedence",
         [
-            ({}, {}, "true"),
+            ({}, {}, "false"),
             ({}, {"safeToEvict": True}, "true"),
             ({}, {"safeToEvict": False}, "false"),
             (
@@ -851,25 +953,27 @@ class TestWorker:
             show_only=["templates/workers/worker-deployment.yaml"],
         )
 
-        assert "test-volume-airflow-1" == jmespath.search(
-            "spec.volumeClaimTemplates[1].metadata.name", docs[0]
+        assert (
+            jmespath.search("spec.volumeClaimTemplates[1].metadata.name", docs[0]) == "test-volume-airflow-1"
         )
-        assert "test-volume-airflow-2" == jmespath.search(
-            "spec.volumeClaimTemplates[2].metadata.name", docs[0]
+        assert (
+            jmespath.search("spec.volumeClaimTemplates[2].metadata.name", docs[0]) == "test-volume-airflow-2"
         )
-        assert "storage-class-1" == jmespath.search(
-            "spec.volumeClaimTemplates[1].spec.storageClassName", docs[0]
+        assert (
+            jmespath.search("spec.volumeClaimTemplates[1].spec.storageClassName", docs[0])
+            == "storage-class-1"
         )
-        assert "storage-class-2" == jmespath.search(
-            "spec.volumeClaimTemplates[2].spec.storageClassName", docs[0]
+        assert (
+            jmespath.search("spec.volumeClaimTemplates[2].spec.storageClassName", docs[0])
+            == "storage-class-2"
         )
-        assert ["ReadWriteOnce"] == jmespath.search("spec.volumeClaimTemplates[1].spec.accessModes", docs[0])
-        assert ["ReadWriteOnce"] == jmespath.search("spec.volumeClaimTemplates[2].spec.accessModes", docs[0])
-        assert "10Gi" == jmespath.search(
-            "spec.volumeClaimTemplates[1].spec.resources.requests.storage", docs[0]
+        assert jmespath.search("spec.volumeClaimTemplates[1].spec.accessModes", docs[0]) == ["ReadWriteOnce"]
+        assert jmespath.search("spec.volumeClaimTemplates[2].spec.accessModes", docs[0]) == ["ReadWriteOnce"]
+        assert (
+            jmespath.search("spec.volumeClaimTemplates[1].spec.resources.requests.storage", docs[0]) == "10Gi"
         )
-        assert "20Gi" == jmespath.search(
-            "spec.volumeClaimTemplates[2].spec.resources.requests.storage", docs[0]
+        assert (
+            jmespath.search("spec.volumeClaimTemplates[2].spec.resources.requests.storage", docs[0]) == "20Gi"
         )
 
     @pytest.mark.parametrize(
@@ -896,8 +1000,9 @@ class TestWorker:
             values={"workers": {"persistence": {"storageClassName": "{{ .Release.Name }}-storage-class"}}},
             show_only=["templates/workers/worker-deployment.yaml"],
         )
-        assert "release-name-storage-class" == jmespath.search(
-            "spec.volumeClaimTemplates[0].spec.storageClassName", docs[0]
+        assert (
+            jmespath.search("spec.volumeClaimTemplates[0].spec.storageClassName", docs[0])
+            == "release-name-storage-class"
         )
 
 
@@ -982,6 +1087,22 @@ class TestWorkerKedaAutoScaler:
             show_only=["templates/workers/worker-kedaautoscaler.yaml"],
         )
         assert expected_query == jmespath.search("spec.triggers[0].metadata.query", docs[0])
+
+    def test_mysql_db_backend_keda_worker(self):
+        docs = render_chart(
+            values={
+                "data": {"metadataConnection": {"protocol": "mysql"}},
+                "workers": {
+                    "keda": {"enabled": True},
+                },
+            },
+            show_only=["templates/workers/worker-kedaautoscaler.yaml"],
+        )
+        assert jmespath.search("spec.triggers[0].metadata.queryValue", docs[0]) == "1"
+        assert jmespath.search("spec.triggers[0].metadata.targetQueryValue", docs[0]) is None
+
+        assert jmespath.search("spec.triggers[0].metadata.connectionStringFromEnv", docs[0]) == "KEDA_DB_CONN"
+        assert jmespath.search("spec.triggers[0].metadata.connectionFromEnv", docs[0]) is None
 
 
 class TestWorkerHPAAutoScaler:
@@ -1141,6 +1262,7 @@ class TestWorkerServiceAccount:
             ("LocalExecutor", False),
             ("CeleryExecutor", True),
             ("CeleryKubernetesExecutor", True),
+            ("CeleryExecutor,KubernetesExecutor", True),
             ("KubernetesExecutor", True),
             ("LocalKubernetesExecutor", True),
         ],

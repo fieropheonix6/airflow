@@ -44,11 +44,13 @@ override the top level ``json`` keys.
 
 Currently the named parameters that ``DatabricksCreateJobsOperator`` supports are:
   - ``name``
+  - ``description``
   - ``tags``
   - ``tasks``
   - ``job_clusters``
   - ``email_notifications``
   - ``webhook_notifications``
+  - ``notification_settings``
   - ``timeout_seconds``
   - ``schedule``
   - ``max_concurrent_runs``
@@ -64,7 +66,7 @@ Specifying parameters as JSON
 
 An example usage of the DatabricksCreateJobsOperator is as follows:
 
-.. exampleinclude:: /../../tests/system/providers/databricks/example_databricks.py
+.. exampleinclude:: /../../providers/tests/system/databricks/example_databricks.py
     :language: python
     :start-after: [START howto_operator_databricks_jobs_create_json]
     :end-before: [END howto_operator_databricks_jobs_create_json]
@@ -74,7 +76,7 @@ Using named parameters
 
 You can also use named parameters to initialize the operator and run the job.
 
-.. exampleinclude:: /../../tests/system/providers/databricks/example_databricks.py
+.. exampleinclude:: /../../providers/tests/system/databricks/example_databricks.py
     :language: python
     :start-after: [START howto_operator_databricks_jobs_create_named]
     :end-before: [END howto_operator_databricks_jobs_create_named]
@@ -85,7 +87,7 @@ Pairing with DatabricksRunNowOperator
 You can use the ``job_id`` that is returned by the DatabricksCreateJobsOperator in the
 return_value XCom as an argument to the DatabricksRunNowOperator to run the job.
 
-.. exampleinclude:: /../../tests/system/providers/databricks/example_databricks.py
+.. exampleinclude:: /../../providers/tests/system/databricks/example_databricks.py
     :language: python
     :start-after: [START howto_operator_databricks_run_now]
     :end-before: [END howto_operator_databricks_run_now]

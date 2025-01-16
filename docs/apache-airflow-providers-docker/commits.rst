@@ -35,14 +35,158 @@ For high-level changelog, see :doc:`package information including changelog <ind
 
 
 
+4.0.0
+.....
+
+Latest change: 2024-12-19
+
+=================================================================================================  ===========  =====================================================================
+Commit                                                                                             Committed    Subject
+=================================================================================================  ===========  =====================================================================
+`35b927fe17 <https://github.com/apache/airflow/commit/35b927fe177065dad0e00c49d72b494e58b27ca8>`_  2024-12-19   ``Update path of example dags in docs (#45069)``
+`4b38bed76c <https://github.com/apache/airflow/commit/4b38bed76c1ea5fe84a6bc678ce87e20d563adc0>`_  2024-12-16   ``Bump min version of Providers to 2.9 (#44956)``
+`e03265bb56 <https://github.com/apache/airflow/commit/e03265bb5613b8cfcaa2a42cf6369b1ba091ddf4>`_  2024-12-05   ``Correct new changelog breaking changes header (#44659)``
+`f1f64998bd <https://github.com/apache/airflow/commit/f1f64998bd9614989167e4b80150ff800d3a1c1b>`_  2024-12-02   ``Remove Provider Deprecations in Docker (#44583)``
+`1275fec92f <https://github.com/apache/airflow/commit/1275fec92fd7cd7135b100d66d41bdcb79ade29d>`_  2024-11-24   ``Use Python 3.9 as target version for Ruff & Black rules (#44298)``
+`8d8bb0f23e <https://github.com/apache/airflow/commit/8d8bb0f23e1ffa1c6518486eaee3c9df1bc3e0a5>`_  2024-11-17   ``fix docker documentation auth url (#44112)``
+`4dfae23532 <https://github.com/apache/airflow/commit/4dfae23532d26ed838069c49d48f28c185e954c6>`_  2024-11-15   ``Update DAG example links in multiple providers documents (#44034)``
+=================================================================================================  ===========  =====================================================================
+
+3.14.1
+......
+
+Latest change: 2024-11-14
+
+=================================================================================================  ===========  ========================================================================================
+Commit                                                                                             Committed    Subject
+=================================================================================================  ===========  ========================================================================================
+`a53d9f6d25 <https://github.com/apache/airflow/commit/a53d9f6d257f193ea5026ba4cd007d5ddeab968f>`_  2024-11-14   ``Prepare docs for Nov 1st wave of providers (#44011)``
+`74bc8728fb <https://github.com/apache/airflow/commit/74bc8728fb58f73d65b9283e33577f234e7b8bb3>`_  2024-11-09   ``Fix logs with leading spaces in the Docker operator (#33692) (#43840)``
+`06088a3abc <https://github.com/apache/airflow/commit/06088a3abcbb46533e74de360746db766d50cf66>`_  2024-10-31   ``Standard provider python operator (#42081)``
+`857ca4c06c <https://github.com/apache/airflow/commit/857ca4c06c9008593674cabdd28d3c30e3e7f97b>`_  2024-10-09   ``Split providers out of the main "airflow/" tree into a UV workspace project (#42505)``
+=================================================================================================  ===========  ========================================================================================
+
+3.14.0
+......
+
+Latest change: 2024-09-21
+
+=================================================================================================  ===========  =================================================================================
+Commit                                                                                             Committed    Subject
+=================================================================================================  ===========  =================================================================================
+`7628d47d04 <https://github.com/apache/airflow/commit/7628d47d0481966d9a9b25dfd4870b7a6797ebbf>`_  2024-09-21   ``Prepare docs for Sep 1st wave of providers (#42387)``
+`938ab82c22 <https://github.com/apache/airflow/commit/938ab82c220d6a36c41ffc4c076da45318416362>`_  2024-08-27   ``Add logging device and logging device options to DockerSwarmOperator (#41416)``
+`16f0073c19 <https://github.com/apache/airflow/commit/16f0073c19c205edd465944af520b901404627cd>`_  2024-08-22   ``Add retrieve output docker swarm operator (#41531)``
+=================================================================================================  ===========  =================================================================================
+
+3.13.0
+......
+
+Latest change: 2024-08-19
+
+=================================================================================================  ===========  =======================================================================
+Commit                                                                                             Committed    Subject
+=================================================================================================  ===========  =======================================================================
+`75fb7acbac <https://github.com/apache/airflow/commit/75fb7acbaca09a040067f0a5a37637ff44eb9e14>`_  2024-08-19   ``Prepare docs for Aug 2nd wave of providers (#41559)``
+`901f00d1d0 <https://github.com/apache/airflow/commit/901f00d1d0b8ea9cf5ba531f94fe7b9bd8637a58>`_  2024-08-14   ``feat(docker): Replace 'use_dill' with 'serializer' (#41356)``
+`fcbff15bda <https://github.com/apache/airflow/commit/fcbff15bda151f70db0ca13fdde015bace5527c4>`_  2024-08-12   ``Bump minimum Airflow version in providers to Airflow 2.8.0 (#41396)``
+=================================================================================================  ===========  =======================================================================
+
+3.12.3
+......
+
+Latest change: 2024-08-03
+
+=================================================================================================  ===========  =====================================================================
+Commit                                                                                             Committed    Subject
+=================================================================================================  ===========  =====================================================================
+`d23881c648 <https://github.com/apache/airflow/commit/d23881c6489916113921dcedf85077441b44aaf3>`_  2024-08-03   ``Prepare docs for Aug 1st wave of providers (#41230)``
+`d44016ce65 <https://github.com/apache/airflow/commit/d44016ce6565194236d20ecc308f540a4f363a76>`_  2024-07-20   ``DockerSwarmOperator: Support line breaks in service logs (#40705)``
+=================================================================================================  ===========  =====================================================================
+
+3.12.2
+......
+
+Latest change: 2024-07-09
+
+=================================================================================================  ===========  ==========================================================================
+Commit                                                                                             Committed    Subject
+=================================================================================================  ===========  ==========================================================================
+`09a7bd1d58 <https://github.com/apache/airflow/commit/09a7bd1d585d2d306dd30435689f22b614fe0abf>`_  2024-07-09   ``Prepare docs 1st wave July 2024 (#40644)``
+`dc08893c90 <https://github.com/apache/airflow/commit/dc08893c906b6b2c57a9ec859d5d6ab329af5b30>`_  2024-07-08   ``DockerOperator TaskFlow - correct argyments in python command (#39620)``
+`c8b7dc5ce6 <https://github.com/apache/airflow/commit/c8b7dc5ce69267e064307851be92ab56532df8d2>`_  2024-06-29   ``Improve logging behavior of DockerOperator (#40489)``
+`a62bd83188 <https://github.com/apache/airflow/commit/a62bd831885957c55b073bf309bc59a1d505e8fb>`_  2024-06-27   ``Enable enforcing pydocstyle rule D213 in ruff. (#40448)``
+=================================================================================================  ===========  ==========================================================================
+
+3.12.1
+......
+
+Latest change: 2024-06-22
+
+=================================================================================================  ===========  ============================================
+Commit                                                                                             Committed    Subject
+=================================================================================================  ===========  ============================================
+`6e5ae26382 <https://github.com/apache/airflow/commit/6e5ae26382b328e88907e8301d4b2352ef8524c5>`_  2024-06-22   ``Prepare docs 2nd wave June 2024 (#40273)``
+`aec3f80278 <https://github.com/apache/airflow/commit/aec3f802783c42f8544c631d08e3b226d41cdc39>`_  2024-05-27   ``Bump docker version to 7.1.0 (#39839)``
+=================================================================================================  ===========  ============================================
+
+3.12.0
+......
+
+Latest change: 2024-05-26
+
+=================================================================================================  ===========  ===================================================================
+Commit                                                                                             Committed    Subject
+=================================================================================================  ===========  ===================================================================
+`34500f3a2f <https://github.com/apache/airflow/commit/34500f3a2fa4652272bc831e3c18fd2a6a2da5ef>`_  2024-05-26   ``Prepare docs 3rd wave May 2024 (#39738)``
+`39269d6a71 <https://github.com/apache/airflow/commit/39269d6a71f9696cbe0053e23fb965a59ca555c7>`_  2024-05-22   ``Limit requests in botocore upgrade test (#39747)``
+`1da7f1f433 <https://github.com/apache/airflow/commit/1da7f1f4339241c0a0aa59e158c4cd480c1b2ddf>`_  2024-05-21   ``Pin requests due to incompatibility with docker-py (#39740)``
+`77a6b4f419 <https://github.com/apache/airflow/commit/77a6b4f41917e05009c34fd9be9b7fa4192a11bc>`_  2024-05-18   ``Add args to docker service ContainerSpec (#39464)``
+`2b1a2f8d56 <https://github.com/apache/airflow/commit/2b1a2f8d561e569df194c4ee0d3a18930738886e>`_  2024-05-11   ``Reapply templates for all providers (#39554)``
+`2c05187b07 <https://github.com/apache/airflow/commit/2c05187b07baf7c41a32b18fabdbb3833acc08eb>`_  2024-05-10   ``Faster 'airflow_version' imports (#39552)``
+`73918925ed <https://github.com/apache/airflow/commit/73918925edaf1c94790a6ad8bec01dec60accfa1>`_  2024-05-08   ``Simplify 'airflow_version' imports (#39497)``
+`377a915cdc <https://github.com/apache/airflow/commit/377a915cdcb647159e5e134305f510e66cd64a02>`_  2024-05-04   ``Add support to define Resources on DockerSwarmOperator (#39027)``
+=================================================================================================  ===========  ===================================================================
+
+3.11.0
+......
+
+Latest change: 2024-05-01
+
+=================================================================================================  ===========  =======================================================================
+Commit                                                                                             Committed    Subject
+=================================================================================================  ===========  =======================================================================
+`fe4605a10e <https://github.com/apache/airflow/commit/fe4605a10e26f1b8a180979ba5765d1cb7fb0111>`_  2024-05-01   ``Prepare docs 1st wave May 2024 (#39328)``
+`ead9b00f7c <https://github.com/apache/airflow/commit/ead9b00f7cd5acecf9d575c459bb62633088436a>`_  2024-04-25   ``Bump minimum Airflow version in providers to Airflow 2.7.0 (#39240)``
+=================================================================================================  ===========  =======================================================================
+
+3.10.0
+......
+
+Latest change: 2024-04-10
+
+=================================================================================================  ===========  ===================================================================================
+Commit                                                                                             Committed    Subject
+=================================================================================================  ===========  ===================================================================================
+`5fa80b6aea <https://github.com/apache/airflow/commit/5fa80b6aea60f93cdada66f160e2b54f723865ca>`_  2024-04-10   ``Prepare docs 1st wave (RC1) April 2024 (#38863)``
+`871267484d <https://github.com/apache/airflow/commit/871267484de4b38e33383791a4880905d33bb332>`_  2024-04-05   ``Fix TRY002 for docker swarm operator (#38768)``
+`0e1a789119 <https://github.com/apache/airflow/commit/0e1a78911944482780ee92037dd68e204818f8a9>`_  2024-04-05   ``Improve 'DockerOperator' to support multiple Docker hosts (#38466)``
+`537e0e695b <https://github.com/apache/airflow/commit/537e0e695b595454a08525ec69b2c529ec194fa6>`_  2024-04-03   ``docs: add timeout description to DockerOperator. (#38710)``
+`c37ab12116 <https://github.com/apache/airflow/commit/c37ab12116472630f86dba905572d8e478a422a3>`_  2024-03-27   ``Remove redundant compatibility usage of importlib_metadata (#38368)``
+`81790aaaa0 <https://github.com/apache/airflow/commit/81790aaaa029fe4e5102b25fce002e2e0f3c69db>`_  2024-03-24   ``Fix deprecated 'DockerOperator' operator arguments in 'MappedOperator' (#38379)``
+`947c48b2fb <https://github.com/apache/airflow/commit/947c48b2fbfaed59068e4a06e223cf501cc1227f>`_  2024-03-22   ``DockerOperator: use DOCKER_HOST as default for docker_url (#38387)``
+`0a74928894 <https://github.com/apache/airflow/commit/0a74928894fb57b0160208262ccacad12da23fc7>`_  2024-03-18   ``Bump ruff to 0.3.3 (#38240)``
+=================================================================================================  ===========  ===================================================================================
+
 3.9.2
 .....
 
-Latest change: 2024-02-21
+Latest change: 2024-03-04
 
 =================================================================================================  ===========  ====================================================================================================================
 Commit                                                                                             Committed    Subject
 =================================================================================================  ===========  ====================================================================================================================
+`83316b8158 <https://github.com/apache/airflow/commit/83316b81584c9e516a8142778fc509f19d95cc3e>`_  2024-03-04   ``Prepare docs 1st wave (RC1) March 2024 (#37876)``
 `c92b8db0d4 <https://github.com/apache/airflow/commit/c92b8db0d40672e6dd7e8cf064193e4371fcb2e8>`_  2024-02-21   ``Fix construct 'docker.TLSConfig' for 'docker>=7' (#37481)``
 `5a0be392e6 <https://github.com/apache/airflow/commit/5a0be392e66f8e5426ba3478621115e92fcf245b>`_  2024-02-16   ``Add comment about versions updated by release manager (#37488)``
 `bfb054e9e8 <https://github.com/apache/airflow/commit/bfb054e9e867b8b9a6a449e43bfba97f645e025e>`_  2024-02-12   ``Prepare docs 1st wave of Providers February 2024 (#37326)``
@@ -52,6 +196,7 @@ Commit                                                                          
 `6bd450da1e <https://github.com/apache/airflow/commit/6bd450da1eb6cacc2ccfd4544d520ae059b75c3b>`_  2024-01-10   ``Provide the logger_name param in providers hooks in order to override the logger name (#36675)``
 `19ebcac239 <https://github.com/apache/airflow/commit/19ebcac2395ef9a6b6ded3a2faa29dc960c1e635>`_  2024-01-07   ``Prepare docs 1st wave of Providers January 2024 (#36640)``
 `6937ae7647 <https://github.com/apache/airflow/commit/6937ae76476b3bc869ef912d000bcc94ad642db1>`_  2023-12-30   ``Speed up autocompletion of Breeze by simplifying provider state (#36499)``
+`a3b3a6e0c8 <https://github.com/apache/airflow/commit/a3b3a6e0c84a088faddf5645efd83b96fcd5901f>`_  2023-12-25   ``Remove redundant 'docker' decorator parameters in documentation (#36407)``
 =================================================================================================  ===========  ====================================================================================================================
 
 3.9.1
@@ -108,6 +253,8 @@ Latest change: 2023-11-08
 Commit                                                                                             Committed    Subject
 =================================================================================================  ===========  ==============================================================================
 `1b059c57d6 <https://github.com/apache/airflow/commit/1b059c57d6d57d198463e5388138bee8a08591b1>`_  2023-11-08   ``Prepare docs 1st wave of Providers November 2023 (#35537)``
+`706878ec35 <https://github.com/apache/airflow/commit/706878ec354cf867440c367a95c85753c19e54de>`_  2023-11-04   ``Remove empty lines in generated changelog (#35436)``
+`052e26ad47 <https://github.com/apache/airflow/commit/052e26ad473a9d50f0b96456ed094f2087ee4434>`_  2023-11-04   ``Change security.rst to use includes in providers (#35435)``
 `1c9d1c2f8a <https://github.com/apache/airflow/commit/1c9d1c2f8abc33c9235fe7700362793dcc27a137>`_  2023-10-31   ``fix '_DockerDecoratedOperator' module type attribute pickle error (#35293)``
 `d1c58d86de <https://github.com/apache/airflow/commit/d1c58d86de1267d9268a1efe0a0c102633c051a1>`_  2023-10-28   ``Prepare docs 3rd wave of Providers October 2023 - FIX (#35233)``
 `3592ff4046 <https://github.com/apache/airflow/commit/3592ff40465032fa041600be740ee6bc25e7c242>`_  2023-10-28   ``Prepare docs 3rd wave of Providers October 2023 (#35187)``
@@ -183,6 +330,7 @@ Commit                                                                          
 =================================================================================================  ===========  =======================================================================
 `60677b0ba3 <https://github.com/apache/airflow/commit/60677b0ba3c9e81595ec2aa3d4be2737e5b32054>`_  2023-08-05   ``Prepare docs for Aug 2023 1st wave of Providers (#33128)``
 `e3d82c6be0 <https://github.com/apache/airflow/commit/e3d82c6be0e0e1468ade053c37690aa1e0e4882d>`_  2023-08-04   ``Get rid of Python2 numeric relics (#33050)``
+`73b90c48b1 <https://github.com/apache/airflow/commit/73b90c48b1933b49086d34176527947bd727ec85>`_  2023-07-21   ``Allow configuration to be contributed by providers (#32604)``
 `225e3041d2 <https://github.com/apache/airflow/commit/225e3041d269698d0456e09586924c1898d09434>`_  2023-07-06   ``Prepare docs for July 2023 wave of Providers (RC2) (#32381)``
 `3878fe6fab <https://github.com/apache/airflow/commit/3878fe6fab3ccc1461932b456c48996f2763139f>`_  2023-07-05   ``Remove spurious headers for provider changelogs (#32373)``
 `cb4927a018 <https://github.com/apache/airflow/commit/cb4927a01887e2413c45d8d9cb63e74aa994ee74>`_  2023-07-05   ``Prepare docs for July 2023 wave of Providers (#32298)``
@@ -217,6 +365,7 @@ Commit                                                                          
 `45548b9451 <https://github.com/apache/airflow/commit/45548b9451fba4e48c6f0c0ba6050482c2ea2956>`_  2023-05-19   ``Prepare RC2 docs for May 2023 wave of Providers (#31416)``
 `abea189022 <https://github.com/apache/airflow/commit/abea18902257c0250fedb764edda462f9e5abc84>`_  2023-05-18   ``Use '__version__' in providers not 'version' (#31393)``
 `f5aed58d9f <https://github.com/apache/airflow/commit/f5aed58d9fb2137fa5f0e3ce75b6709bf8393a94>`_  2023-05-18   ``Fixing circular import error in providers caused by airflow version check (#31379)``
+`7ebda3898d <https://github.com/apache/airflow/commit/7ebda3898db2eee72d043a9565a674dea72cd8fa>`_  2023-05-17   ``Fix missing line in index.rst for provider documentation (#31343)``
 `d8c0e3009a <https://github.com/apache/airflow/commit/d8c0e3009a649ce057595539b96a566b7faa5584>`_  2023-05-17   ``adding docker port expose capability (#30730)``
 `d9ff55cf6d <https://github.com/apache/airflow/commit/d9ff55cf6d95bb342fed7a87613db7b9e7c8dd0f>`_  2023-05-16   ``Prepare docs for May 2023 wave of Providers (#31252)``
 `0a30706aa7 <https://github.com/apache/airflow/commit/0a30706aa7c581905ca99a8b6e2f05960d480729>`_  2023-05-03   ``Use 'AirflowProviderDeprecationWarning' in providers (#30975)``
@@ -279,6 +428,8 @@ Commit                                                                          
 =================================================================================================  ===========  =======================================================================
 `5246c009c5 <https://github.com/apache/airflow/commit/5246c009c557b4f6bdf1cd62bf9b89a2da63f630>`_  2023-01-02   ``Prepare docs for Jan 2023 wave of Providers (#28651)``
 `ea08989db1 <https://github.com/apache/airflow/commit/ea08989db11ada7f5244f3bdec9d2697e9b4b3b8>`_  2022-12-30   ``Move min airflow version down for Docker Provider to 2.3.0 (#28648)``
+`74b69030ef <https://github.com/apache/airflow/commit/74b69030efbb87e44c411b3563989d722fa20336>`_  2022-12-14   ``The task.docker documentation added (#28251)``
+`c8e348dcb0 <https://github.com/apache/airflow/commit/c8e348dcb0bae27e98d68545b59388c9f91fc382>`_  2022-12-05   ``Add automated version replacement in example dag indexes (#28090)``
 `1aa3da543a <https://github.com/apache/airflow/commit/1aa3da543a3f9229527a5de2807053e15b2bfea7>`_  2022-11-29   ``add hostname argument to DockerOperator (#27822)``
 =================================================================================================  ===========  =======================================================================
 
@@ -326,6 +477,7 @@ Commit                                                                          
 `0de31bd73a <https://github.com/apache/airflow/commit/0de31bd73a8f41dded2907f0dee59dfa6c1ed7a1>`_  2022-06-29   ``Move provider dependencies to inside provider folders (#24672)``
 `510a6bab45 <https://github.com/apache/airflow/commit/510a6bab4595cce8bd5b1447db957309d70f35d9>`_  2022-06-28   ``Remove 'hook-class-names' from provider.yaml (#24702)``
 `40f08900f2 <https://github.com/apache/airflow/commit/40f08900f2d1fb0d316b40dde583535a076f616b>`_  2022-06-28   ``Clean up task decorator type hints and docstrings (#24667)``
+`08b675cf66 <https://github.com/apache/airflow/commit/08b675cf6642171cb1c5ddfb09607b541db70b29>`_  2022-06-13   ``Fix links to sources for examples (#24386)``
 =================================================================================================  ===========  ===================================================================================
 
 3.0.0
@@ -443,6 +595,8 @@ Commit                                                                          
 `59e4b78daa <https://github.com/apache/airflow/commit/59e4b78daa3496cb0358ce34aeb5ebf6f5565ce0>`_  2021-12-29   ``Fix MyPy errors for Airflow decorators (#20034)``
 `b20e6d3f06 <https://github.com/apache/airflow/commit/b20e6d3f060bc385e350433070d5707ae6d6d0b0>`_  2021-12-14   ``Fix mypy docker provider (#20235)``
 `1924e29fa2 <https://github.com/apache/airflow/commit/1924e29fa2ca5bdf61daec81639b9b247f1bd004>`_  2021-12-03   ``Allow DockerOperator's image to be templated (#19997)``
+`43de625d42 <https://github.com/apache/airflow/commit/43de625d4246af7014f64941f8effb09997731cb>`_  2021-12-01   ``Correctly capitalize names and abbreviations in docs (#19908)``
+`9a469d813f <https://github.com/apache/airflow/commit/9a469d813fc083a7a5f402727e93df3e3f9c9118>`_  2021-11-30   ``Capitalize names in docs (#19893)``
 `853576d901 <https://github.com/apache/airflow/commit/853576d9019d2aca8de1d9c587c883dcbe95b46a>`_  2021-11-30   ``Update documentation for November 2021 provider's release (#19882)``
 `aa2cb5545f <https://github.com/apache/airflow/commit/aa2cb5545f09d694b9143b323efcd4f6b6c66e60>`_  2021-11-12   ``Remove remaining 'pylint: disable' comments (#19541)``
 =================================================================================================  ===========  =========================================================================
@@ -474,6 +628,8 @@ Commit                                                                          
 `ef037e7021 <https://github.com/apache/airflow/commit/ef037e702182e4370cb00c853c4fb0e246a0479c>`_  2021-09-29   ``Static start_date and default arg cleanup for misc. provider example DAGs (#18597)``
 `2a3cbabbf8 <https://github.com/apache/airflow/commit/2a3cbabbf8a21123e0b9c35866226087c3cebc4c>`_  2021-09-23   ``Cope with '@task.docker' decorated function not returning anything (#18463)``
 `a9772cf287 <https://github.com/apache/airflow/commit/a9772cf287111a63eac8c2deb1190f7054d7580f>`_  2021-09-20   ``Add a Docker Taskflow decorator (#15330)``
+`1cb456cba1 <https://github.com/apache/airflow/commit/1cb456cba1099198bbdba50c2d1ad79664be8ce6>`_  2021-09-12   ``Add official download page for providers (#18187)``
+`046f02e5a7 <https://github.com/apache/airflow/commit/046f02e5a7097a6e6c928c28196b38b37e776916>`_  2021-09-09   ``fix misspelling (#18121)``
 =================================================================================================  ===========  ======================================================================================
 
 2.1.1
@@ -514,17 +670,18 @@ Commit                                                                          
 
 Latest change: 2021-06-18
 
-=================================================================================================  ===========  =================================================================
+=================================================================================================  ===========  ====================================================================
 Commit                                                                                             Committed    Subject
-=================================================================================================  ===========  =================================================================
+=================================================================================================  ===========  ====================================================================
 `bbc627a3da <https://github.com/apache/airflow/commit/bbc627a3dab17ba4cf920dd1a26dbed6f5cebfd1>`_  2021-06-18   ``Prepares documentation for rc2 release of Providers (#16501)``
 `cbf8001d76 <https://github.com/apache/airflow/commit/cbf8001d7630530773f623a786f9eb319783b33c>`_  2021-06-16   ``Synchronizes updated changelog after buggfix release (#16464)``
 `8a9c337838 <https://github.com/apache/airflow/commit/8a9c3378385454f16560d82e885ebc00c5ec069c>`_  2021-06-15   ``Remove class references in changelogs (#16454)``
 `1fba5402bb <https://github.com/apache/airflow/commit/1fba5402bb14b3ffa6429fdc683121935f88472f>`_  2021-06-15   ``More documentation update for June providers release (#16405)``
 `9c94b72d44 <https://github.com/apache/airflow/commit/9c94b72d440b18a9e42123d20d48b951712038f9>`_  2021-06-07   ``Updated documentation for June 2021 provider release (#16294)``
+`1e647029e4 <https://github.com/apache/airflow/commit/1e647029e469c1bb17e9ad051d0184f3357644c3>`_  2021-06-01   ``Rename the main branch of the Airflow repo to be 'main' (#16149)``
 `12995cfb9a <https://github.com/apache/airflow/commit/12995cfb9a90d1f93511a4a4ab692323e62cc318>`_  2021-05-17   ``Replace DockerOperator's 'volumes' arg for 'mounts' (#15843)``
 `37681bca00 <https://github.com/apache/airflow/commit/37681bca0081dd228ac4047c17631867bba7a66f>`_  2021-05-07   ``Auto-apply apply_default decorator (#15667)``
-=================================================================================================  ===========  =================================================================
+=================================================================================================  ===========  ====================================================================
 
 1.2.0
 .....
@@ -544,11 +701,12 @@ Commit                                                                          
 1.1.0
 .....
 
-Latest change: 2021-04-06
+Latest change: 2021-04-07
 
 =================================================================================================  ===========  =============================================================================
 Commit                                                                                             Committed    Subject
 =================================================================================================  ===========  =============================================================================
+`4e018a870c <https://github.com/apache/airflow/commit/4e018a870ccdece6b0985db0c8ae68d10ae1d055>`_  2021-04-07   ``Refreshed provider's upcoming release with k8s retries (#15239)``
 `042be2e4e0 <https://github.com/apache/airflow/commit/042be2e4e06b988f5ba2dc146f53774dabc8b76b>`_  2021-04-06   ``Updated documentation for provider packages before April release (#15236)``
 `68e4c4dcb0 <https://github.com/apache/airflow/commit/68e4c4dcb0416eb51a7011a3bb040f1e23d7bba8>`_  2021-03-20   ``Remove Backport Providers (#14886)``
 `3064bf0442 <https://github.com/apache/airflow/commit/3064bf04429f86ff2b527704603ef3ca9b9fe22f>`_  2021-03-02   ``Add privileged option in DockerOperator (#14157)``
@@ -582,6 +740,7 @@ Commit                                                                          
 `3fd5ef3555 <https://github.com/apache/airflow/commit/3fd5ef355556cf0ad7896bb570bbe4b2eabbf46e>`_  2021-01-21   ``Add missing logos for integrations (#13717)``
 `295d66f914 <https://github.com/apache/airflow/commit/295d66f91446a69610576d040ba687b38f1c5d0a>`_  2020-12-30   ``Fix Grammar in PIP warning (#13380)``
 `6cf76d7ac0 <https://github.com/apache/airflow/commit/6cf76d7ac01270930de7f105fb26428763ee1d4e>`_  2020-12-18   ``Fix typo in pip upgrade command :( (#13148)``
+`f6448b4e48 <https://github.com/apache/airflow/commit/f6448b4e482fd96339ae65c26d08e6a2bdb51aaf>`_  2020-12-15   ``Add link to PyPI Repository to provider docs (#13064)``
 =================================================================================================  ===========  ==============================================================================
 
 1.0.0
@@ -597,6 +756,7 @@ Commit                                                                          
 `9b39f24780 <https://github.com/apache/airflow/commit/9b39f24780e85f859236672e9060b2fbeee81b36>`_  2020-12-08   ``Add support for dynamic connection form fields per provider (#12558)``
 `6b339c70c4 <https://github.com/apache/airflow/commit/6b339c70c45a2bad0e1e2c3f6638f4c59475569e>`_  2020-12-03   ``Avoid log spam & have more meaningful log when pull image in DockerOperator (#12763)``
 `2037303eef <https://github.com/apache/airflow/commit/2037303eef93fd36ab13746b045d1c1fee6aa143>`_  2020-11-29   ``Adds support for Connection/Hook discovery from providers (#12466)``
+`f2569de7d1 <https://github.com/apache/airflow/commit/f2569de7d1a7b100774f397a641e977c307cbb91>`_  2020-11-22   ``Add example DAGs to provider docs (#12528)``
 `c34ef853c8 <https://github.com/apache/airflow/commit/c34ef853c890e08f5468183c03dc8f3f3ce84af2>`_  2020-11-20   ``Separate out documentation building per provider  (#12444)``
 `0080354502 <https://github.com/apache/airflow/commit/00803545023b096b8db4fbd6eb473843096d7ce4>`_  2020-11-18   ``Update provider READMEs for 1.0.0b2 batch release (#12449)``
 `ae7cb4a1e2 <https://github.com/apache/airflow/commit/ae7cb4a1e2a96351f1976cf5832615e24863e05d>`_  2020-11-17   ``Update wrong commit hash in backport provider changes (#12390)``

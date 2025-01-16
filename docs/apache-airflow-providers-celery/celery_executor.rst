@@ -26,7 +26,8 @@ Celery Executor
 
 
 ``CeleryExecutor`` is one of the ways you can scale out the number of workers. For this
-to work, you need to setup a Celery backend (**RabbitMQ**, **Redis**, **Redis Sentinel** ...) and
+to work, you need to setup a Celery backend (**RabbitMQ**, **Redis**, **Redis Sentinel** ...),
+install the required dependencies (such as ``librabbitmq``, ``redis`` ...) and
 change your ``airflow.cfg`` to point the executor parameter to
 ``CeleryExecutor`` and provide the related Celery settings.
 
@@ -186,10 +187,10 @@ Two databases are also available:
 - QueueBroker
 - ResultBackend
 
-During this process, two 2 process are created:
+During this process, two processes are created:
 
-- LocalTaskJobProcess - It logic is described by LocalTaskJob. It is monitoring RawTaskProcess. New processes are started using TaskRunner.
-- RawTaskProcess - It is process with the user code e.g. :meth:`~airflow.models.baseoperator.BaseOperator.execute`.
+- LocalTaskJobProcess - Its logic is described by LocalTaskJob. It is monitoring RawTaskProcess. New processes are started using TaskRunner.
+- RawTaskProcess - It is a process with the user code e.g. :meth:`~airflow.models.baseoperator.BaseOperator.execute`.
 
 | [1] **SchedulerProcess** processes the tasks and when it finds a task that needs to be done, sends it to the **QueueBroker**.
 | [2] **SchedulerProcess** also begins to periodically query **ResultBackend** for the status of the task.

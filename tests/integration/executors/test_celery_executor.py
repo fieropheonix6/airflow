@@ -22,7 +22,10 @@ import json
 import logging
 import os
 import sys
+from ast import literal_eval
 from datetime import datetime
+from importlib import reload
+from time import sleep
 from unittest import mock
 
 # leave this it is used by the test worker
@@ -36,17 +39,20 @@ from kombu.asynchronous import set_event_loop
 
 from airflow.configuration import conf
 from airflow.exceptions import AirflowException, AirflowTaskTimeout
+from airflow.executors import base_executor
 from airflow.models.dag import DAG
 from airflow.models.taskinstance import SimpleTaskInstance, TaskInstance
-from airflow.operators.bash import BashOperator
-from airflow.utils.state import State
-from tests.test_utils import db
+from airflow.models.taskinstancekey import TaskInstanceKey
+from airflow.providers.standard.operators.bash import BashOperator
+from airflow.utils.state import State, TaskInstanceState
+
+from tests_common.test_utils import db
+
+logger = logging.getLogger(__name__)
 
 
 def _prepare_test_bodies():
-    if "CELERY_BROKER_URLS" in os.environ:
-        return os.environ["CELERY_BROKER_URLS"].split(",")
-    return [conf.get("celery", "BROKER_URL")]
+    return literal_eval(os.environ["CELERY_BROKER_URLS_MAP"]).values()
 
 
 class FakeCeleryResult:
@@ -94,7 +100,7 @@ def _prepare_app(broker_url=None, execute=None):
 
 
 @pytest.mark.integration("celery")
-@pytest.mark.backend("mysql", "postgres")
+@pytest.mark.backend("postgres")
 class TestCeleryExecutor:
     def setup_method(self) -> None:
         db.clear_db_runs()
@@ -103,6 +109,27 @@ class TestCeleryExecutor:
     def teardown_method(self) -> None:
         db.clear_db_runs()
         db.clear_db_jobs()
+
+    def test_change_state_back_compat(self):
+        # This represents the old implementation that an Airflow package may have
+        def _change_state(self, key: TaskInstanceKey, state: TaskInstanceState, info=None) -> None:
+            pass
+
+        # Replace change_state function on base executor with the old version to force the backcompat edge
+        # case we're looking for
+        base_executor.BaseExecutor.change_state = _change_state
+        # Create an instance of celery executor while the base executor is modified
+        from airflow.providers.celery.executors import celery_executor
+
+        executor = celery_executor.CeleryExecutor()
+
+        # This will throw an exception if the backcompat is not properly handled
+        executor.change_state(
+            key=TaskInstanceKey("foo", "bar", "baz"), state=TaskInstanceState.QUEUED, info="test"
+        )
+        # Restore the base executor and celery modules
+        reload(base_executor)
+        reload(celery_executor)
 
     @pytest.mark.flaky(reruns=3)
     @pytest.mark.parametrize("broker_url", _prepare_test_bodies())
@@ -140,12 +167,20 @@ class TestCeleryExecutor:
                 ]
 
                 # "Enqueue" them. We don't have a real SimpleTaskInstance, so directly edit the dict
-                for key, command, queue, task in task_tuples_to_send:
+                for key, command, queue, _ in task_tuples_to_send:
                     executor.queued_tasks[key] = (command, 1, queue, None)
                     executor.task_publish_retries[key] = 1
 
                 executor._process_tasks(task_tuples_to_send)
-
+                for _ in range(20):
+                    num_tasks = len(executor.tasks.keys())
+                    if num_tasks == 2:
+                        break
+                    logger.info(
+                        "Waiting 0.1 s for tasks to be processed asynchronously. Processed so far %d",
+                        num_tasks,
+                    )
+                    sleep(0.4)
                 assert list(executor.tasks.keys()) == [
                     ("success", "fake_simple_ti", execute_date, 0),
                     ("fail", "fake_simple_ti", execute_date, 0),
@@ -176,7 +211,10 @@ class TestCeleryExecutor:
             # which will cause TypeError when calling task.apply_async()
             executor = celery_executor.CeleryExecutor()
             task = BashOperator(
-                task_id="test", bash_command="true", dag=DAG(dag_id="id"), start_date=datetime.now()
+                task_id="test",
+                bash_command="true",
+                dag=DAG(dag_id="id", schedule=None),
+                start_date=datetime.now(),
             )
             when = datetime.now()
             value_tuple = (
@@ -189,25 +227,32 @@ class TestCeleryExecutor:
             executor.queued_tasks[key] = value_tuple
             executor.task_publish_retries[key] = 1
             executor.heartbeat()
-        assert 0 == len(executor.queued_tasks), "Task should no longer be queued"
+        assert len(executor.queued_tasks) == 0, "Task should no longer be queued"
         assert executor.event_buffer[("fail", "fake_simple_ti", when, 0)][0] == State.FAILED
 
     def test_retry_on_error_sending_task(self, caplog):
         """Test that Airflow retries publishing tasks to Celery Broker at least 3 times"""
         from airflow.providers.celery.executors import celery_executor, celery_executor_utils
 
-        with _prepare_app(), caplog.at_level(logging.INFO), mock.patch.object(
-            # Mock `with timeout()` to _instantly_ fail.
-            celery_executor_utils.timeout,
-            "__enter__",
-            side_effect=AirflowTaskTimeout,
+        with (
+            _prepare_app(),
+            caplog.at_level(logging.INFO),
+            mock.patch.object(
+                # Mock `with timeout()` to _instantly_ fail.
+                celery_executor_utils.timeout,
+                "__enter__",
+                side_effect=AirflowTaskTimeout,
+            ),
         ):
             executor = celery_executor.CeleryExecutor()
             assert executor.task_publish_retries == {}
             assert executor.task_publish_max_retries == 3, "Assert Default Max Retries is 3"
 
             task = BashOperator(
-                task_id="test", bash_command="true", dag=DAG(dag_id="id"), start_date=datetime.now()
+                task_id="test",
+                bash_command="true",
+                dag=DAG(dag_id="id", schedule=None),
+                start_date=datetime.now(),
             )
             when = datetime.now()
             value_tuple = (
@@ -222,25 +267,25 @@ class TestCeleryExecutor:
             # Test that when heartbeat is called again, task is published again to Celery Queue
             executor.heartbeat()
             assert dict(executor.task_publish_retries) == {key: 1}
-            assert 1 == len(executor.queued_tasks), "Task should remain in queue"
+            assert len(executor.queued_tasks) == 1, "Task should remain in queue"
             assert executor.event_buffer == {}
             assert f"[Try 1 of 3] Task Timeout Error for Task: ({key})." in caplog.text
 
             executor.heartbeat()
             assert dict(executor.task_publish_retries) == {key: 2}
-            assert 1 == len(executor.queued_tasks), "Task should remain in queue"
+            assert len(executor.queued_tasks) == 1, "Task should remain in queue"
             assert executor.event_buffer == {}
             assert f"[Try 2 of 3] Task Timeout Error for Task: ({key})." in caplog.text
 
             executor.heartbeat()
             assert dict(executor.task_publish_retries) == {key: 3}
-            assert 1 == len(executor.queued_tasks), "Task should remain in queue"
+            assert len(executor.queued_tasks) == 1, "Task should remain in queue"
             assert executor.event_buffer == {}
             assert f"[Try 3 of 3] Task Timeout Error for Task: ({key})." in caplog.text
 
             executor.heartbeat()
             assert dict(executor.task_publish_retries) == {}
-            assert 0 == len(executor.queued_tasks), "Task should no longer be in queue"
+            assert len(executor.queued_tasks) == 0, "Task should no longer be in queue"
             assert executor.event_buffer[("fail", "fake_simple_ti", when, 0)][0] == State.FAILED
 
 
@@ -265,7 +310,7 @@ class ClassWithCustomAttributes:
 
 
 @pytest.mark.integration("celery")
-@pytest.mark.backend("mysql", "postgres")
+@pytest.mark.backend("postgres")
 class TestBulkStateFetcher:
     bulk_state_fetcher_logger = "airflow.providers.celery.executors.celery_executor_utils.BulkStateFetcher"
 

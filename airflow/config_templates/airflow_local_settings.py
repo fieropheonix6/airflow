@@ -16,6 +16,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Airflow logging settings."""
+
 from __future__ import annotations
 
 import os
@@ -60,10 +61,6 @@ DAG_PROCESSOR_MANAGER_LOG_STDOUT: str = conf.get_mandatory_value(
     "logging", "DAG_PROCESSOR_MANAGER_LOG_STDOUT"
 )
 
-# FILENAME_TEMPLATE only uses in Remote Logging Handlers since Airflow 2.3.3
-# All of these handlers inherited from FileTaskHandler and providing any value rather than None
-# would raise deprecation warning.
-FILENAME_TEMPLATE: str | None = None
 
 PROCESSOR_FILENAME_TEMPLATE: str = conf.get_mandatory_value("logging", "LOG_PROCESSOR_FILENAME_TEMPLATE")
 
@@ -211,7 +208,7 @@ REMOTE_LOGGING: bool = conf.getboolean("logging", "remote_logging")
 
 if REMOTE_LOGGING:
     ELASTICSEARCH_HOST: str | None = conf.get("elasticsearch", "HOST")
-
+    OPENSEARCH_HOST: str | None = conf.get("opensearch", "HOST")
     # Storage bucket URL for remote logging
     # S3 buckets should start with "s3://"
     # Cloudwatch log groups should start with "cloudwatch://"
@@ -229,7 +226,6 @@ if REMOTE_LOGGING:
                 "formatter": "airflow",
                 "base_log_folder": str(os.path.expanduser(BASE_LOG_FOLDER)),
                 "s3_log_folder": REMOTE_BASE_LOG_FOLDER,
-                "filename_template": FILENAME_TEMPLATE,
             },
         }
 
@@ -242,7 +238,6 @@ if REMOTE_LOGGING:
                 "formatter": "airflow",
                 "base_log_folder": str(os.path.expanduser(BASE_LOG_FOLDER)),
                 "log_group_arn": url_parts.netloc + url_parts.path,
-                "filename_template": FILENAME_TEMPLATE,
             },
         }
 
@@ -255,7 +250,6 @@ if REMOTE_LOGGING:
                 "formatter": "airflow",
                 "base_log_folder": str(os.path.expanduser(BASE_LOG_FOLDER)),
                 "gcs_log_folder": REMOTE_BASE_LOG_FOLDER,
-                "filename_template": FILENAME_TEMPLATE,
                 "gcp_key_path": key_path,
             },
         }
@@ -272,7 +266,6 @@ if REMOTE_LOGGING:
                 "base_log_folder": str(os.path.expanduser(BASE_LOG_FOLDER)),
                 "wasb_log_folder": REMOTE_BASE_LOG_FOLDER,
                 "wasb_container": wasb_log_container,
-                "filename_template": FILENAME_TEMPLATE,
             },
         }
 
@@ -285,7 +278,7 @@ if REMOTE_LOGGING:
             "task": {
                 "class": "airflow.providers.google.cloud.log.stackdriver_task_handler.StackdriverTaskHandler",
                 "formatter": "airflow",
-                "name": log_name,
+                "gcp_log_name": log_name,
                 "gcp_key_path": key_path,
             }
         }
@@ -298,7 +291,6 @@ if REMOTE_LOGGING:
                 "formatter": "airflow",
                 "base_log_folder": os.path.expanduser(BASE_LOG_FOLDER),
                 "oss_log_folder": REMOTE_BASE_LOG_FOLDER,
-                "filename_template": FILENAME_TEMPLATE,
             },
         }
         DEFAULT_LOGGING_CONFIG["handlers"].update(OSS_REMOTE_HANDLERS)
@@ -309,7 +301,6 @@ if REMOTE_LOGGING:
                 "formatter": "airflow",
                 "base_log_folder": str(os.path.expanduser(BASE_LOG_FOLDER)),
                 "hdfs_log_folder": REMOTE_BASE_LOG_FOLDER,
-                "filename_template": FILENAME_TEMPLATE,
             },
         }
         DEFAULT_LOGGING_CONFIG["handlers"].update(HDFS_REMOTE_HANDLERS)
@@ -317,8 +308,10 @@ if REMOTE_LOGGING:
         ELASTICSEARCH_END_OF_LOG_MARK: str = conf.get_mandatory_value("elasticsearch", "END_OF_LOG_MARK")
         ELASTICSEARCH_FRONTEND: str = conf.get_mandatory_value("elasticsearch", "frontend")
         ELASTICSEARCH_WRITE_STDOUT: bool = conf.getboolean("elasticsearch", "WRITE_STDOUT")
+        ELASTICSEARCH_WRITE_TO_ES: bool = conf.getboolean("elasticsearch", "WRITE_TO_ES")
         ELASTICSEARCH_JSON_FORMAT: bool = conf.getboolean("elasticsearch", "JSON_FORMAT")
         ELASTICSEARCH_JSON_FIELDS: str = conf.get_mandatory_value("elasticsearch", "JSON_FIELDS")
+        ELASTICSEARCH_TARGET_INDEX: str = conf.get_mandatory_value("elasticsearch", "TARGET_INDEX")
         ELASTICSEARCH_HOST_FIELD: str = conf.get_mandatory_value("elasticsearch", "HOST_FIELD")
         ELASTICSEARCH_OFFSET_FIELD: str = conf.get_mandatory_value("elasticsearch", "OFFSET_FIELD")
 
@@ -327,11 +320,12 @@ if REMOTE_LOGGING:
                 "class": "airflow.providers.elasticsearch.log.es_task_handler.ElasticsearchTaskHandler",
                 "formatter": "airflow",
                 "base_log_folder": str(os.path.expanduser(BASE_LOG_FOLDER)),
-                "filename_template": FILENAME_TEMPLATE,
                 "end_of_log_mark": ELASTICSEARCH_END_OF_LOG_MARK,
                 "host": ELASTICSEARCH_HOST,
                 "frontend": ELASTICSEARCH_FRONTEND,
                 "write_stdout": ELASTICSEARCH_WRITE_STDOUT,
+                "write_to_es": ELASTICSEARCH_WRITE_TO_ES,
+                "target_index": ELASTICSEARCH_TARGET_INDEX,
                 "json_format": ELASTICSEARCH_JSON_FORMAT,
                 "json_fields": ELASTICSEARCH_JSON_FIELDS,
                 "host_field": ELASTICSEARCH_HOST_FIELD,
@@ -340,6 +334,35 @@ if REMOTE_LOGGING:
         }
 
         DEFAULT_LOGGING_CONFIG["handlers"].update(ELASTIC_REMOTE_HANDLERS)
+    elif OPENSEARCH_HOST:
+        OPENSEARCH_END_OF_LOG_MARK: str = conf.get_mandatory_value("opensearch", "END_OF_LOG_MARK")
+        OPENSEARCH_PORT: str = conf.get_mandatory_value("opensearch", "PORT")
+        OPENSEARCH_USERNAME: str = conf.get_mandatory_value("opensearch", "USERNAME")
+        OPENSEARCH_PASSWORD: str = conf.get_mandatory_value("opensearch", "PASSWORD")
+        OPENSEARCH_WRITE_STDOUT: bool = conf.getboolean("opensearch", "WRITE_STDOUT")
+        OPENSEARCH_JSON_FORMAT: bool = conf.getboolean("opensearch", "JSON_FORMAT")
+        OPENSEARCH_JSON_FIELDS: str = conf.get_mandatory_value("opensearch", "JSON_FIELDS")
+        OPENSEARCH_HOST_FIELD: str = conf.get_mandatory_value("opensearch", "HOST_FIELD")
+        OPENSEARCH_OFFSET_FIELD: str = conf.get_mandatory_value("opensearch", "OFFSET_FIELD")
+
+        OPENSEARCH_REMOTE_HANDLERS: dict[str, dict[str, str | bool | None]] = {
+            "task": {
+                "class": "airflow.providers.opensearch.log.os_task_handler.OpensearchTaskHandler",
+                "formatter": "airflow",
+                "base_log_folder": str(os.path.expanduser(BASE_LOG_FOLDER)),
+                "end_of_log_mark": OPENSEARCH_END_OF_LOG_MARK,
+                "host": OPENSEARCH_HOST,
+                "port": OPENSEARCH_PORT,
+                "username": OPENSEARCH_USERNAME,
+                "password": OPENSEARCH_PASSWORD,
+                "write_stdout": OPENSEARCH_WRITE_STDOUT,
+                "json_format": OPENSEARCH_JSON_FORMAT,
+                "json_fields": OPENSEARCH_JSON_FIELDS,
+                "host_field": OPENSEARCH_HOST_FIELD,
+                "offset_field": OPENSEARCH_OFFSET_FIELD,
+            },
+        }
+        DEFAULT_LOGGING_CONFIG["handlers"].update(OPENSEARCH_REMOTE_HANDLERS)
     else:
         raise AirflowException(
             "Incorrect remote log configuration. Please check the configuration of option 'host' in "

@@ -25,7 +25,7 @@ from airflow.utils.state import State
 pytestmark = pytest.mark.db_test
 
 
-class Test_BranchPythonVirtualenvDecoratedOperator:
+class TestBranchPythonVirtualenvDecoratedOperator:
     # when run in "Parallel" test run environment, sometimes this test runs for a long time
     # because creating virtualenv and starting new Python interpreter creates a lot of IO/contention
     # possibilities. So we are increasing the timeout for this test to 3x of the default timeout
@@ -78,12 +78,12 @@ class Test_BranchPythonVirtualenvDecoratedOperator:
             branchoperator.set_downstream(task_2)
 
         dr = dag_maker.create_dagrun()
-        df.operator.run(start_date=dr.execution_date, end_date=dr.execution_date, ignore_ti_state=True)
+        df.operator.run(start_date=dr.logical_date, end_date=dr.logical_date, ignore_ti_state=True)
         branchoperator.operator.run(
-            start_date=dr.execution_date, end_date=dr.execution_date, ignore_ti_state=True
+            start_date=dr.logical_date, end_date=dr.logical_date, ignore_ti_state=True
         )
-        task_1.operator.run(start_date=dr.execution_date, end_date=dr.execution_date, ignore_ti_state=True)
-        task_2.operator.run(start_date=dr.execution_date, end_date=dr.execution_date, ignore_ti_state=True)
+        task_1.operator.run(start_date=dr.logical_date, end_date=dr.logical_date, ignore_ti_state=True)
+        task_2.operator.run(start_date=dr.logical_date, end_date=dr.logical_date, ignore_ti_state=True)
         tis = dr.get_task_instances()
 
         for ti in tis:
