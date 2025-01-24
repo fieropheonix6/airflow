@@ -20,6 +20,8 @@ import os
 import stat
 import warnings
 from contextlib import nullcontext as no_raise
+from pathlib import Path
+from typing import TYPE_CHECKING
 from unittest import mock
 
 import pytest
@@ -29,7 +31,12 @@ from airflow.exceptions import AirflowException, AirflowSkipException
 from airflow.models.renderedtifields import RenderedTaskInstanceFields
 from airflow.utils import timezone
 from airflow.utils.types import NOTSET
-from tests.test_utils.db import clear_db_dags, clear_db_runs, clear_rendered_ti_fields
+
+from tests_common.test_utils.db import clear_db_dags, clear_db_runs, clear_rendered_ti_fields
+
+if TYPE_CHECKING:
+    from airflow.models import TaskInstance
+    from airflow.operators.bash import BashOperator
 
 DEFAULT_DATE = timezone.datetime(2023, 1, 1)
 
@@ -70,8 +77,7 @@ class TestBashDecorator:
         with self.dag:
 
             @task.bash
-            def bash():
-                ...
+            def bash(): ...
 
             bash_task = bash()
 
@@ -340,14 +346,15 @@ class TestBashDecorator:
 
         assert bash_task.operator.bash_command == NOTSET
 
+        dr = self.dag_maker.create_dagrun()
+        ti = dr.task_instances[0]
         with pytest.raises(AirflowException, match=f"Can not find the cwd: {cwd_path}"):
-            ti, _ = self.execute_task(bash_task)
-
-            self.validate_bash_command_rtif(ti, "echo")
+            ti.run()
+        assert ti.task.bash_command == "echo"
 
     def test_cwd_is_file(self, tmp_path):
         """Verify task failure for user-defined working directory that is actually a file."""
-        cwd_file = tmp_path / "test_file.sh"
+        cwd_file = tmp_path / "testfile.var.env"
         cwd_file.touch()
 
         with self.dag:
@@ -360,28 +367,32 @@ class TestBashDecorator:
 
         assert bash_task.operator.bash_command == NOTSET
 
+        dr = self.dag_maker.create_dagrun()
+        ti = dr.task_instances[0]
         with pytest.raises(AirflowException, match=f"The cwd {cwd_file} must be a directory"):
-            ti, _ = self.execute_task(bash_task)
-
-            self.validate_bash_command_rtif(ti, "echo")
+            ti.run()
+        assert ti.task.bash_command == "echo"
 
     def test_command_not_found(self):
         """Fail task if executed command is not found on path."""
+
+        with self.dag:
+
+            @task.bash
+            def bash():
+                return "set -e; something-that-isnt-on-path"
+
+            bash_task = bash()
+
+        assert bash_task.operator.bash_command == NOTSET
+
+        dr = self.dag_maker.create_dagrun()
+        ti = dr.task_instances[0]
         with pytest.raises(
             AirflowException, match="Bash command failed\\. The command returned a non-zero exit code 127\\."
         ):
-            with self.dag:
-
-                @task.bash
-                def bash():
-                    return "set -e; something-that-isnt-on-path"
-
-                bash_task = bash()
-
-            assert bash_task.operator.bash_command == NOTSET
-
-            ti, _ = self.execute_task(bash_task)
-            self.validate_bash_command_rtif(ti, "set -e; something-that-isnt-on-path")
+            ti.run()
+        assert ti.task.bash_command == "set -e; something-that-isnt-on-path"
 
     def test_multiple_outputs_true(self):
         """Verify setting `multiple_outputs` for a @task.bash-decorated function is ignored."""
@@ -475,7 +486,38 @@ class TestBashDecorator:
 
         assert bash_task.operator.bash_command == NOTSET
 
+        dr = self.dag_maker.create_dagrun()
+        ti = dr.task_instances[0]
         with pytest.raises(AirflowException):
-            ti, _ = self.execute_task(bash_task)
+            ti.run()
+        assert ti.task.bash_command == f"{DEFAULT_DATE.date()}; exit 1;"
 
-            self.validate_bash_command_rtif(ti, f"{DEFAULT_DATE.date()}; exit 1;")
+    @pytest.mark.db_test
+    def test_templated_bash_script(self, dag_maker, tmp_path, session):
+        """
+        Creates a .sh script with Jinja template.
+        Pass it to the BashOperator and ensure it gets correctly rendered and executed.
+        """
+        bash_script: str = "sample.sh"
+        path: Path = tmp_path / bash_script
+        path.write_text('echo "{{ ti.task_id }}"')
+
+        with dag_maker(
+            dag_id="test_templated_bash_script", session=session, template_searchpath=os.fspath(path.parent)
+        ):
+
+            @task.bash
+            def test_templated_fields_task():
+                return bash_script
+
+            test_templated_fields_task()
+
+        ti: TaskInstance = dag_maker.create_dagrun().task_instances[0]
+        session.add(ti)
+        session.commit()
+        context = ti.get_template_context(session=session)
+        ti.render_templates(context=context)
+
+        op: BashOperator = ti.task
+        result = op.execute(context=context)
+        assert result == "test_templated_fields_task"

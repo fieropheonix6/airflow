@@ -16,6 +16,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Utilities module for cli."""
+
 from __future__ import annotations
 
 import functools
@@ -31,20 +32,17 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Callable, TypeVar, cast
 
 import re2
-from sqlalchemy import select
 
 from airflow import settings
-from airflow.exceptions import AirflowException, RemovedInAirflow3Warning
+from airflow.exceptions import AirflowException
 from airflow.utils import cli_action_loggers, timezone
 from airflow.utils.log.non_caching_file_handler import NonCachingFileHandler
+from airflow.utils.log.secrets_masker import should_hide_value_for_key
 from airflow.utils.platform import getuser, is_terminal_support_colors
-from airflow.utils.session import NEW_SESSION, provide_session
 
 T = TypeVar("T", bound=Callable)
 
 if TYPE_CHECKING:
-    from sqlalchemy.orm import Session
-
     from airflow.models.dag import DAG
 
 logger = logging.getLogger(__name__)
@@ -76,7 +74,7 @@ def action_cli(func=None, check_db=True):
             log : airflow.models.log.Log ORM instance
             dag_id : dag id (optional)
             task_id : task_id (optional)
-            execution_date : execution date (optional)
+            logical_date : logical date (optional)
             error : exception instance if there's an exception
 
         :param f: function instance
@@ -131,17 +129,24 @@ def _build_metrics(func_name, namespace):
 
     It assumes that function arguments is from airflow.bin.cli module's function
     and has Namespace instance where it optionally contains "dag_id", "task_id",
-    and "execution_date".
+    and "logical_date".
 
     :param func_name: name of function
     :param namespace: Namespace instance from argparse
     :return: dict with metrics
     """
-    sub_commands_to_check = {"users", "connections"}
+    sub_commands_to_check_for_sensitive_fields = {"users", "connections"}
+    sub_commands_to_check_for_sensitive_key = {"variables"}
     sensitive_fields = {"-p", "--password", "--conn-password"}
     full_command = list(sys.argv)
     sub_command = full_command[1] if len(full_command) > 1 else None
-    if sub_command in sub_commands_to_check:
+    # For cases when value under sub_commands_to_check_for_sensitive_key have sensitive info
+    if sub_command in sub_commands_to_check_for_sensitive_key:
+        key = full_command[-2] if len(full_command) > 3 else None
+        if key and should_hide_value_for_key(key):
+            # Mask the sensitive value since key contain sensitive keyword
+            full_command[-1] = "*" * 8
+    elif sub_command in sub_commands_to_check_for_sensitive_fields:
         for idx, command in enumerate(full_command):
             if command in sensitive_fields:
                 # For cases when password is passed as "--password xyz" (with space between key and value)
@@ -166,7 +171,7 @@ def _build_metrics(func_name, namespace):
     tmp_dic = vars(namespace)
     metrics["dag_id"] = tmp_dic.get("dag_id")
     metrics["task_id"] = tmp_dic.get("task_id")
-    metrics["execution_date"] = tmp_dic.get("execution_date")
+    metrics["logical_date"] = tmp_dic.get("logical_date")
     metrics["host_name"] = socket.gethostname()
 
     return metrics
@@ -229,10 +234,11 @@ def get_dag(subdir: str | None, dag_id: str, from_db: bool = False) -> DAG:
 
     if from_db:
         dagbag = DagBag(read_dags_from_db=True)
+        dag = dagbag.get_dag(dag_id)  # get_dag loads from the DB as requested
     else:
         first_path = process_subdir(subdir)
         dagbag = DagBag(first_path)
-    dag = dagbag.get_dag(dag_id)
+        dag = dagbag.dags.get(dag_id)  # avoids db calls made in get_dag
     if not dag:
         if from_db:
             raise AirflowException(f"Dag {dag_id!r} could not be found in DagBag read from database.")
@@ -261,18 +267,6 @@ def get_dags(subdir: str | None, dag_id: str, use_regex: bool = False):
             f"it failed to parse."
         )
     return matched_dags
-
-
-@provide_session
-def get_dag_by_pickle(pickle_id: int, session: Session = NEW_SESSION) -> DAG:
-    """Fetch DAG from the database using pickling."""
-    from airflow.models import DagPickle
-
-    dag_pickle = session.scalar(select(DagPickle).where(DagPickle.id == pickle_id).limit(1))
-    if not dag_pickle:
-        raise AirflowException(f"pickle_id could not be found in DagPickle.id list: {pickle_id}")
-    pickle_dag = dag_pickle.pickle
-    return pickle_dag
 
 
 def setup_locations(process, pid=None, stdout=None, stderr=None, log=None):
@@ -349,14 +343,6 @@ def should_use_colors(args) -> bool:
 
 
 def should_ignore_depends_on_past(args) -> bool:
-    if args.ignore_depends_on_past:
-        warnings.warn(
-            "Using `--ignore-depends-on-past` is Deprecated."
-            "Please use `--depends-on-past ignore` instead.",
-            RemovedInAirflow3Warning,
-            stacklevel=2,
-        )
-        return True
     return args.depends_on_past == "ignore"
 
 

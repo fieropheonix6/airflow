@@ -21,101 +21,50 @@
 
 import { getMetaValue } from "./utils";
 import { approxTimeFromNow, formatDateTime } from "./datetime_utils";
-import { openDatasetModal, getDatasetTooltipInfo } from "./datasetUtils";
+import { openAssetModal, getAssetTooltipInfo } from "./assetUtils";
 
 const dagId = getMetaValue("dag_id");
 const pausedUrl = getMetaValue("paused_url");
 // eslint-disable-next-line import/prefer-default-export
 export const dagTZ = getMetaValue("dag_timezone");
-const datasetsUrl = getMetaValue("datasets_url");
+const assetsUrl = getMetaValue("assets_url");
 const nextRun = {
   createAfter: getMetaValue("next_dagrun_create_after"),
   intervalStart: getMetaValue("next_dagrun_data_interval_start"),
   intervalEnd: getMetaValue("next_dagrun_data_interval_end"),
 };
-let nextDatasets = [];
-let nextDatasetsError;
+let nextAssets = [];
+let nextAssetsError;
 
-const setNextDatasets = (datasets, error) => {
-  nextDatasets = datasets;
-  nextDatasetsError = error;
+const setNextAssets = (assets, error) => {
+  nextAssets = assets;
+  nextAssetsError = error;
 };
 
-// Check if there is a highlighted tab and change the active nav button
-const onTabChange = () => {
-  const urlParams = new URLSearchParams(window.location.search);
-  const isGrid = window.location.href.includes(`${dagId}/grid`);
-  const tab = urlParams.get("tab");
-  const gridNav = document.getElementById("grid-nav");
-  const graphNav = document.getElementById("graph-nav");
-  const ganttNav = document.getElementById("gantt-nav");
-  const codeNav = document.getElementById("code-nav");
-  if (isGrid) {
-    if (tab === "graph") {
-      gridNav.classList.remove("active");
-      ganttNav.classList.remove("active");
-      codeNav.classList.remove("active");
-      graphNav.classList.add("active");
-    } else if (tab === "gantt") {
-      gridNav.classList.remove("active");
-      graphNav.classList.remove("active");
-      codeNav.classList.remove("active");
-      ganttNav.classList.add("active");
-    } else if (tab === "code") {
-      gridNav.classList.remove("active");
-      graphNav.classList.remove("active");
-      ganttNav.classList.remove("active");
-      codeNav.classList.add("active");
-    } else {
-      graphNav.classList.remove("active");
-      ganttNav.classList.remove("active");
-      codeNav.classList.remove("active");
-      gridNav.classList.add("active");
-    }
-  }
-};
-
-// Pills highlighting
 $(window).on("load", function onLoad() {
   $(`a[href*="${this.location.pathname}"]`).parent().addClass("active");
   $(".never_active").removeClass("active");
-  const run = $("#next-dataset-tooltip");
-  const singleDatasetUri = $(run).data("uri");
-  if (!singleDatasetUri) {
-    getDatasetTooltipInfo(dagId, run, setNextDatasets);
+  const run = $("#next-asset-tooltip");
+  const singleAssetUri = $(run).data("uri");
+  if (!singleAssetUri) {
+    getAssetTooltipInfo(dagId, run, setNextAssets);
   }
-
-  onTabChange();
-});
-
-// Dispatch an event whenever history changes that we can then listen to
-const LOCATION_CHANGE = "locationchange";
-(function dispatchLocationEvent() {
-  const { pushState, replaceState } = window.history;
-
-  window.history.pushState = (...args) => {
-    pushState.apply(window.history, args);
-    window.dispatchEvent(new Event(LOCATION_CHANGE));
-  };
-
-  window.history.replaceState = (...args) => {
-    replaceState.apply(window.history, args);
-    window.dispatchEvent(new Event(LOCATION_CHANGE));
-  };
-
-  window.addEventListener("popstate", () => {
-    window.dispatchEvent(new Event(LOCATION_CHANGE));
-  });
-})();
-
-window.addEventListener(LOCATION_CHANGE, () => {
-  onTabChange();
 });
 
 $("#pause_resume").on("change", function onChange() {
   const $input = $(this);
   const id = $input.data("dag-id");
   const isPaused = $input.is(":checked");
+  const requireConfirmation = $input.is("[data-require-confirmation]");
+  if (requireConfirmation) {
+    const confirmation = window.confirm(
+      `Are you sure you want to ${isPaused ? "resume" : "pause"} this DAG?`
+    );
+    if (!confirmation) {
+      $input.prop("checked", !isPaused);
+      return;
+    }
+  }
   const url = `${pausedUrl}?is_paused=${isPaused}&dag_id=${encodeURIComponent(
     id
   )}`;
@@ -155,15 +104,15 @@ $("#next-run").on("mouseover", () => {
   });
 });
 
-$(".next-dataset-triggered").on("click", (e) => {
-  const run = $("#next-dataset-tooltip");
+$(".next-asset-triggered").on("click", (e) => {
+  const run = $("#next-asset-tooltip");
   const summary = $(e.target).data("summary");
-  const singleDatasetUri = $(run).data("uri");
-  if (!singleDatasetUri) {
-    openDatasetModal(dagId, summary, nextDatasets, nextDatasetsError);
+  const singleAssetUri = $(run).data("uri");
+  if (!singleAssetUri) {
+    openAssetModal(dagId, summary, nextAssets, nextAssetsError);
   } else {
-    window.location.href = `${datasetsUrl}?uri=${encodeURIComponent(
-      singleDatasetUri
+    window.location.href = `${assetsUrl}?uri=${encodeURIComponent(
+      singleAssetUri
     )}`;
   }
 });

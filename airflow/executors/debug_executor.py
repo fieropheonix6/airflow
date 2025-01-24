@@ -22,6 +22,7 @@ DebugExecutor.
     For more information on how the DebugExecutor works, take a look at the guide:
     :ref:`executor:DebugExecutor`
 """
+
 from __future__ import annotations
 
 import threading
@@ -46,7 +47,6 @@ class DebugExecutor(BaseExecutor):
 
     _terminated = threading.Event()
 
-    is_single_threaded: bool = True
     is_production: bool = False
 
     change_sensor_mode_to_reschedule: bool = True
@@ -83,7 +83,7 @@ class DebugExecutor(BaseExecutor):
         key = ti.key
         try:
             params = self.tasks_params.pop(ti.key, {})
-            ti.run(job_id=ti.job_id, **params)
+            ti.run(**params)
             self.success(key)
             return True
         except Exception as e:
@@ -96,7 +96,6 @@ class DebugExecutor(BaseExecutor):
         self,
         task_instance: TaskInstance,
         mark_success: bool = False,
-        pickle_id: int | None = None,
         ignore_all_deps: bool = False,
         ignore_depends_on_past: bool = False,
         wait_for_past_depends_before_skipping: bool = False,
@@ -106,10 +105,13 @@ class DebugExecutor(BaseExecutor):
         cfg_path: str | None = None,
     ) -> None:
         """Queues task instance with empty command because we do not need it."""
+        if TYPE_CHECKING:
+            assert task_instance.task
+
         self.queue_command(
             task_instance,
             [str(task_instance)],  # Just for better logging, it's not used anywhere
-            priority=task_instance.task.priority_weight_total,
+            priority=task_instance.priority_weight,
             queue=task_instance.task.queue,
         )
         # Save params for TaskInstance._run_raw_task
@@ -151,8 +153,3 @@ class DebugExecutor(BaseExecutor):
 
     def terminate(self) -> None:
         self._terminated.set()
-
-    def change_state(self, key: TaskInstanceKey, state: TaskInstanceState, info=None) -> None:
-        self.log.debug("Popping %s from executor task queue.", key)
-        self.running.remove(key)
-        self.event_buffer[key] = state, info

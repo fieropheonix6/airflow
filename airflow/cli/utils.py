@@ -19,7 +19,8 @@ from __future__ import annotations
 
 import io
 import sys
-from typing import TYPE_CHECKING, Collection
+from collections.abc import Collection
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from io import IOBase
@@ -32,7 +33,8 @@ class CliConflictError(Exception):
 
 
 def is_stdout(fileio: IOBase) -> bool:
-    """Check whether a file IO is stdout.
+    """
+    Check whether a file IO is stdout.
 
     The intended use case for this helper is to check whether an argument parsed
     with argparse.FileType points to stdout (by setting the path to ``-``). This

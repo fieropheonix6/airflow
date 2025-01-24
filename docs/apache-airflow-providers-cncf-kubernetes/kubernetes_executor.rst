@@ -108,21 +108,21 @@ With these requirements in mind, here are some examples of basic ``pod_template_
 
 Storing DAGs in the image:
 
-.. literalinclude:: /../../airflow/providers/cncf/kubernetes/pod_template_file_examples/dags_in_image_template.yaml
+.. literalinclude:: /../../providers/src/airflow/providers/cncf/kubernetes/pod_template_file_examples/dags_in_image_template.yaml
     :language: yaml
     :start-after: [START template_with_dags_in_image]
     :end-before: [END template_with_dags_in_image]
 
 Storing DAGs in a ``persistentVolume``:
 
-.. literalinclude:: /../../airflow/providers/cncf/kubernetes/pod_template_file_examples/dags_in_volume_template.yaml
+.. literalinclude:: /../../providers/src/airflow/providers/cncf/kubernetes/pod_template_file_examples/dags_in_volume_template.yaml
     :language: yaml
     :start-after: [START template_with_dags_in_volume]
     :end-before: [END template_with_dags_in_volume]
 
 Pulling DAGs from ``git``:
 
-.. literalinclude:: /../../airflow/providers/cncf/kubernetes/pod_template_file_examples/git_sync_template.yaml
+.. literalinclude:: /../../providers/src/airflow/providers/cncf/kubernetes/pod_template_file_examples/git_sync_template.yaml
     :language: yaml
     :start-after:  [START git_sync_template]
     :end-before: [END git_sync_template]
@@ -134,7 +134,6 @@ pod_override
 
 When using the KubernetesExecutor, Airflow offers the ability to override system defaults on a per-task basis.
 To utilize this functionality, create a Kubernetes V1pod object and fill in your desired overrides.
-Please note that the scheduler will override the ``metadata.name`` and ``containers[0].args`` of the V1pod before launching it.
 
 To overwrite the base container of the pod launched by the KubernetesExecutor,
 create a V1pod with a single container, and overwrite the fields as follows:

@@ -23,14 +23,8 @@ from abc import abstractmethod
 class BaseUser:
     """User model interface."""
 
-    @property
-    def is_active(self) -> bool:
-        return True
+    @abstractmethod
+    def get_id(self) -> str: ...
 
     @abstractmethod
-    def get_id(self) -> str:
-        ...
-
-    @abstractmethod
-    def get_name(self) -> str:
-        ...
+    def get_name(self) -> str: ...

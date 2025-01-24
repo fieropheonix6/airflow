@@ -38,13 +38,14 @@ import keyboardShortcutIdentifier from "src/dag/keyboardShortcutIdentifier";
 import ActionButton from "./ActionButton";
 import ActionModal from "./ActionModal";
 
+const canEditTaskInstance = getMetaValue("can_edit_taskinstance") === "True";
 const canEdit = getMetaValue("can_edit") === "True";
 const dagId = getMetaValue("dag_id");
 
 interface Props {
   runId: string;
   taskId: string;
-  executionDate: string;
+  logicalDate: string;
   isGroup?: boolean;
   isMapped?: boolean;
   mapIndex?: number;
@@ -59,7 +60,7 @@ const ClearModal = ({
   runId,
   taskId,
   mapIndex,
-  executionDate,
+  logicalDate,
   isGroup,
   isMapped,
   isOpen,
@@ -93,7 +94,7 @@ const ClearModal = ({
       dagId,
       runId,
       taskId,
-      executionDate,
+      logicalDate,
       isGroup: !!isGroup,
       past,
       future,
@@ -109,7 +110,7 @@ const ClearModal = ({
     dagId,
     runId,
     taskId,
-    executionDate,
+    logicalDate,
     isGroup: !!isGroup,
   });
 
@@ -232,7 +233,7 @@ const ClearInstance = ({
   runId,
   taskId,
   mapIndex,
-  executionDate,
+  logicalDate,
   isGroup,
   isMapped,
   ...otherProps
@@ -248,7 +249,7 @@ const ClearInstance = ({
       <Button
         title={clearLabel}
         aria-label={clearLabel}
-        isDisabled={!canEdit}
+        isDisabled={!canEdit || !canEditTaskInstance}
         colorScheme="blue"
         onClick={onOpen}
         {...otherProps}
@@ -256,12 +257,12 @@ const ClearInstance = ({
         Clear task
       </Button>
       {/* Only mount modal if user can edit */}
-      {canEdit && (
+      {canEdit && canEditTaskInstance && (
         <ClearModal
           runId={runId}
           taskId={taskId}
           mapIndex={mapIndex}
-          executionDate={executionDate}
+          logicalDate={logicalDate}
           isGroup={isGroup}
           isMapped={isMapped}
           isOpen={isOpen}

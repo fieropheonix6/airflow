@@ -16,6 +16,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Manages all providers."""
+
 from __future__ import annotations
 
 import fnmatch
@@ -24,19 +25,21 @@ import inspect
 import json
 import logging
 import os
-import sys
 import traceback
 import warnings
+from collections.abc import MutableMapping
 from dataclasses import dataclass
 from functools import wraps
+from importlib.resources import files as resource_files
 from time import perf_counter
-from typing import TYPE_CHECKING, Any, Callable, MutableMapping, NamedTuple, TypeVar, cast
+from typing import TYPE_CHECKING, Any, Callable, NamedTuple, TypeVar
 
 from packaging.utils import canonicalize_name
 
 from airflow.exceptions import AirflowOptionalProviderFeatureException
-from airflow.hooks.filesystem import FSHook
-from airflow.hooks.package_index import PackageIndexHook
+from airflow.providers.standard.hooks.filesystem import FSHook
+from airflow.providers.standard.hooks.package_index import PackageIndexHook
+from airflow.typing_compat import ParamSpec
 from airflow.utils import yaml
 from airflow.utils.entry_points import entry_points_with_dist
 from airflow.utils.log.logging_mixin import LoggingMixin
@@ -45,10 +48,9 @@ from airflow.utils.singleton import Singleton
 
 log = logging.getLogger(__name__)
 
-if sys.version_info >= (3, 9):
-    from importlib.resources import files as resource_files
-else:
-    from importlib_resources import files as resource_files
+
+PS = ParamSpec("PS")
+RT = TypeVar("RT")
 
 MIN_PROVIDER_VERSIONS = {
     "apache-airflow-providers-celery": "2.1.0",
@@ -84,11 +86,12 @@ def _ensure_prefix_for_placeholders(field_behaviors: dict[str, Any], conn_type: 
 
 
 if TYPE_CHECKING:
+    from typing import Literal
     from urllib.parse import SplitResult
 
     from airflow.decorators.base import TaskDecorator
     from airflow.hooks.base import BaseHook
-    from airflow.typing_compat import Literal
+    from airflow.sdk.definitions.asset import Asset
 
 
 class LazyDictWithCache(MutableMapping):
@@ -119,11 +122,11 @@ class LazyDictWithCache(MutableMapping):
         return value
 
     def __delitem__(self, key):
-        self._raw_dict.__delitem__(key)
         try:
             self._resolved.remove(key)
         except KeyError:
             pass
+        self._raw_dict.__delitem__(key)
 
     def __iter__(self):
         return iter(self._raw_dict)
@@ -133,6 +136,10 @@ class LazyDictWithCache(MutableMapping):
 
     def __contains__(self, key):
         return key in self._raw_dict
+
+    def clear(self):
+        self._resolved.clear()
+        self._raw_dict.clear()
 
 
 def _read_schema_from_resources_or_local_file(filename: str) -> dict:
@@ -168,6 +175,9 @@ def _create_customized_form_field_behaviours_schema_validator():
 
 
 def _check_builtin_provider_prefix(provider_package: str, class_name: str) -> bool:
+    if "bundles" in provider_package:
+        # TODO: AIP-66: remove this when this package is moved to providers directory
+        return True
     if provider_package.startswith("apache-airflow"):
         provider_path = provider_package[len("apache-") :].replace("-", ".")
         if not class_name.startswith(provider_path):
@@ -194,7 +204,7 @@ class ProviderInfo:
 
     version: str
     data: dict
-    package_or_source: Literal["source"] | Literal["package"]
+    package_or_source: Literal["source", "package"]
 
     def __post_init__(self):
         if self.package_or_source not in ("source", "package"):
@@ -210,6 +220,14 @@ class HookClassProvider(NamedTuple):
 
     hook_class_name: str
     package_name: str
+
+
+class DialectInfo(NamedTuple):
+    """Dialect class and Provider it comes from."""
+
+    name: str
+    dialect_class_name: str
+    provider_name: str
 
 
 class TriggerInfo(NamedTuple):
@@ -244,6 +262,7 @@ class HookInfo(NamedTuple):
     hook_name: str
     connection_type: str
     connection_testable: bool
+    dialects: list[str] = []
 
 
 class ConnectionFormWidgetInfo(NamedTuple):
@@ -254,11 +273,6 @@ class ConnectionFormWidgetInfo(NamedTuple):
     field: Any
     field_name: str
     is_sensitive: bool
-
-
-T = TypeVar("T", bound=Callable)
-
-logger = logging.getLogger(__name__)
 
 
 def log_debug_import_from_sources(class_name, e, provider_package):
@@ -357,7 +371,7 @@ def _correctness_check(provider_package: str, class_name: str, provider_info: Pr
 
 # We want to have better control over initialization of parameters and be able to debug and test it
 # So we add our own decorator
-def provider_info_cache(cache_name: str) -> Callable[[T], T]:
+def provider_info_cache(cache_name: str) -> Callable[[Callable[PS, None]], Callable[PS, None]]:
     """
     Decorate and cache provider info.
 
@@ -365,23 +379,26 @@ def provider_info_cache(cache_name: str) -> Callable[[T], T]:
     :param cache_name: Name of the cache
     """
 
-    def provider_info_cache_decorator(func: T):
+    def provider_info_cache_decorator(func: Callable[PS, None]) -> Callable[PS, None]:
         @wraps(func)
-        def wrapped_function(*args, **kwargs):
+        def wrapped_function(*args: PS.args, **kwargs: PS.kwargs) -> None:
             providers_manager_instance = args[0]
+            if TYPE_CHECKING:
+                assert isinstance(providers_manager_instance, ProvidersManager)
+
             if cache_name in providers_manager_instance._initialized_cache:
                 return
             start_time = perf_counter()
-            logger.debug("Initializing Providers Manager[%s]", cache_name)
+            log.debug("Initializing Providers Manager[%s]", cache_name)
             func(*args, **kwargs)
             providers_manager_instance._initialized_cache[cache_name] = True
-            logger.debug(
+            log.debug(
                 "Initialization of Providers Manager[%s] took %.2f seconds",
                 cache_name,
                 perf_counter() - start_time,
             )
 
-        return cast(T, wrapped_function)
+        return wrapped_function
 
     return provider_info_cache_decorator
 
@@ -418,10 +435,13 @@ class ProvidersManager(LoggingMixin, metaclass=Singleton):
         # Keeps dict of hooks keyed by connection type
         self._hooks_dict: dict[str, HookInfo] = {}
         self._fs_set: set[str] = set()
-        self._dataset_uri_handlers: dict[str, Callable[[SplitResult], SplitResult]] = {}
+        self._asset_uri_handlers: dict[str, Callable[[SplitResult], SplitResult]] = {}
+        self._asset_factories: dict[str, Callable[..., Asset]] = {}
+        self._asset_to_openlineage_converters: dict[str, Callable] = {}
         self._taskflow_decorators: dict[str, Callable] = LazyDictWithCache()  # type: ignore[assignment]
         # keeps mapping between connection_types and hook class, package they come from
         self._hook_provider_dict: dict[str, HookClassProvider] = {}
+        self._dialect_provider_dict: dict[str, DialectInfo] = {}
         # Keeps dict of hooks keyed by connection type. They are lazy evaluated at access time
         self._hooks_lazy_dict: LazyDictWithCache[str, HookInfo | Callable] = LazyDictWithCache()
         # Keeps methods that should be used to add custom widgets tuple of keyed by name of the extra field
@@ -515,12 +535,13 @@ class ProvidersManager(LoggingMixin, metaclass=Singleton):
         self.initialize_providers_list()
         self._discover_filesystems()
 
-    @provider_info_cache("dataset_uris")
-    def initializa_providers_dataset_uri_handlers(self):
-        """Lazy initialization of provider dataset URI handlers."""
+    @provider_info_cache("asset_uris")
+    def initialize_providers_asset_uri_resources(self):
+        """Lazy initialization of provider asset URI handlers, factories, converters etc."""
         self.initialize_providers_list()
-        self._discover_dataset_uri_handlers()
+        self._discover_asset_uri_resources()
 
+    @provider_info_cache("hook_lineage_writers")
     @provider_info_cache("taskflow_decorators")
     def initialize_providers_taskflow_decorator(self):
         """Lazy initialization of providers hooks."""
@@ -618,7 +639,7 @@ class ProvidersManager(LoggingMixin, metaclass=Singleton):
             self._provider_schema_validator.validate(provider_info)
             provider_info_package_name = provider_info["package-name"]
             if package_name != provider_info_package_name:
-                raise Exception(
+                raise ValueError(
                     f"The package '{package_name}' from setuptools and "
                     f"{provider_info_package_name} do not match. Please make sure they are aligned"
                 )
@@ -657,7 +678,9 @@ class ProvidersManager(LoggingMixin, metaclass=Singleton):
                     seen.add(path)
                     self._add_provider_info_from_local_source_files_on_path(path)
             except Exception as e:
-                log.warning(f"Error when loading 'provider.yaml' files from {path} airflow sources: {e}")
+                log.warning("Error when loading 'provider.yaml' files from %s airflow sources: %s", path, e)
+        # TODO: AIP-66: Remove this when the package is moved to providers
+        self._add_provider_info_from_local_source_files_on_path("airflow/dag_processing")
 
     def _add_provider_info_from_local_source_files_on_path(self, path) -> None:
         """
@@ -823,6 +846,7 @@ class ProvidersManager(LoggingMixin, metaclass=Singleton):
                     "of 'connection-types' in Airflow 2.2. Use **both** in case you want to "
                     "have backwards compatibility with Airflow < 2.2",
                     DeprecationWarning,
+                    stacklevel=1,
                 )
         for already_registered_connection_type in already_registered_warning_connection_types:
             log.warning(
@@ -836,6 +860,7 @@ class ProvidersManager(LoggingMixin, metaclass=Singleton):
         for package_name, provider in self._provider_dict.items():
             duplicated_connection_types: set[str] = set()
             hook_class_names_registered: set[str] = set()
+            self._discover_provider_dialects(package_name, provider)
             provider_uses_connection_types = self._discover_hooks_from_connection_types(
                 hook_class_names_registered, duplicated_connection_types, package_name, provider
             )
@@ -847,6 +872,20 @@ class ProvidersManager(LoggingMixin, metaclass=Singleton):
                 provider_uses_connection_types,
             )
         self._hook_provider_dict = dict(sorted(self._hook_provider_dict.items()))
+
+    def _discover_provider_dialects(self, provider_name: str, provider: ProviderInfo):
+        dialects = provider.data.get("dialects", [])
+        if dialects:
+            self._dialect_provider_dict.update(
+                {
+                    item["dialect-type"]: DialectInfo(
+                        name=item["dialect-type"],
+                        dialect_class_name=item["dialect-class-name"],
+                        provider_name=provider_name,
+                    )
+                    for item in dialects
+                }
+            )
 
     @provider_info_cache("import_all_hooks")
     def _import_info_from_all_hooks(self):
@@ -870,21 +909,52 @@ class ProvidersManager(LoggingMixin, metaclass=Singleton):
                     self._fs_set.add(fs_module_name)
         self._fs_set = set(sorted(self._fs_set))
 
-    def _discover_dataset_uri_handlers(self) -> None:
-        from airflow.datasets import normalize_noop
+    def _discover_asset_uri_resources(self) -> None:
+        """Discovers and registers asset URI handlers, factories, and converters for all providers."""
+        from airflow.sdk.definitions.asset import normalize_noop
 
-        for provider_package, provider in self._provider_dict.items():
-            for handler_info in provider.data.get("dataset-uris", []):
-                try:
-                    schemes = handler_info["schemes"]
-                    handler_path = handler_info["handler"]
-                except KeyError:
-                    continue
-                if handler_path is None:
-                    handler = normalize_noop
-                elif not (handler := _correctness_check(provider_package, handler_path, provider)):
-                    continue
-                self._dataset_uri_handlers.update((scheme, handler) for scheme in schemes)
+        def _safe_register_resource(
+            provider_package_name: str,
+            schemes_list: list[str],
+            resource_path: str | None,
+            resource_registry: dict,
+            default_resource: Any = None,
+        ):
+            """
+            Register a specific resource (handler, factory, or converter) for the given schemes.
+
+            If the resolved resource (either from the path or the default) is valid, it updates
+            the resource registry with the appropriate resource for each scheme.
+            """
+            resource = (
+                _correctness_check(provider_package_name, resource_path, provider)
+                if resource_path is not None
+                else default_resource
+            )
+            if resource:
+                resource_registry.update((scheme, resource) for scheme in schemes_list)
+
+        for provider_name, provider in self._provider_dict.items():
+            for uri_info in provider.data.get("asset-uris", []):
+                if "schemes" not in uri_info or "handler" not in uri_info:
+                    continue  # Both schemas and handler must be explicitly set, handler can be set to null
+                common_args = {"schemes_list": uri_info["schemes"], "provider_package_name": provider_name}
+                _safe_register_resource(
+                    resource_path=uri_info["handler"],
+                    resource_registry=self._asset_uri_handlers,
+                    default_resource=normalize_noop,
+                    **common_args,
+                )
+                _safe_register_resource(
+                    resource_path=uri_info.get("factory"),
+                    resource_registry=self._asset_factories,
+                    **common_args,
+                )
+                _safe_register_resource(
+                    resource_path=uri_info.get("to_openlineage_converter"),
+                    resource_registry=self._asset_to_openlineage_converters,
+                    **common_args,
+                )
 
     def _discover_taskflow_decorators(self) -> None:
         for name, info in self._provider_dict.items():
@@ -1151,9 +1221,7 @@ class ProvidersManager(LoggingMixin, metaclass=Singleton):
         """Retrieve all configs defined in the providers."""
         for provider_package, provider in self._provider_dict.items():
             if provider.data.get("config"):
-                self._provider_configs[provider_package] = (
-                    provider.data.get("config")  # type: ignore[assignment]
-                )
+                self._provider_configs[provider_package] = provider.data.get("config")  # type: ignore[assignment]
 
     def _discover_plugins(self) -> None:
         """Retrieve all plugins defined in the providers."""
@@ -1221,6 +1289,13 @@ class ProvidersManager(LoggingMixin, metaclass=Singleton):
         return self._hooks_lazy_dict
 
     @property
+    def dialects(self) -> MutableMapping[str, DialectInfo]:
+        """Return dictionary of connection_type-to-dialect mapping."""
+        self.initialize_providers_hooks()
+        # When we return dialects here it will only be used to retrieve dialect information
+        return self._dialect_provider_dict
+
+    @property
     def plugins(self) -> list[PluginInfo]:
         """Returns information about plugins available in providers."""
         self.initialize_providers_plugins()
@@ -1284,9 +1359,21 @@ class ProvidersManager(LoggingMixin, metaclass=Singleton):
         return sorted(self._fs_set)
 
     @property
-    def dataset_uri_handlers(self) -> dict[str, Callable[[SplitResult], SplitResult]]:
-        self.initializa_providers_dataset_uri_handlers()
-        return self._dataset_uri_handlers
+    def asset_factories(self) -> dict[str, Callable[..., Asset]]:
+        self.initialize_providers_asset_uri_resources()
+        return self._asset_factories
+
+    @property
+    def asset_uri_handlers(self) -> dict[str, Callable[[SplitResult], SplitResult]]:
+        self.initialize_providers_asset_uri_resources()
+        return self._asset_uri_handlers
+
+    @property
+    def asset_to_openlineage_converters(
+        self,
+    ) -> dict[str, Callable]:
+        self.initialize_providers_asset_uri_resources()
+        return self._asset_to_openlineage_converters
 
     @property
     def provider_configs(self) -> list[tuple[str, dict[str, Any]]]:
@@ -1304,6 +1391,7 @@ class ProvidersManager(LoggingMixin, metaclass=Singleton):
         self._fs_set.clear()
         self._taskflow_decorators.clear()
         self._hook_provider_dict.clear()
+        self._dialect_provider_dict.clear()
         self._hooks_lazy_dict.clear()
         self._connection_form_widgets.clear()
         self._field_behaviours.clear()

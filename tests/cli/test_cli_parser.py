@@ -29,6 +29,7 @@ from collections import Counter
 from importlib import reload
 from io import StringIO
 from pathlib import Path
+from unittest import mock
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -37,8 +38,15 @@ from airflow.cli import cli_config, cli_parser
 from airflow.cli.cli_config import ActionCommand, core_commands, lazy_load_command
 from airflow.cli.utils import CliConflictError
 from airflow.configuration import AIRFLOW_HOME
+from airflow.executors import executor_loader
+from airflow.executors.executor_utils import ExecutorName
 from airflow.executors.local_executor import LocalExecutor
-from tests.test_utils.config import conf_vars
+from airflow.providers.amazon.aws.executors.ecs.ecs_executor import AwsEcsExecutor
+from airflow.providers.celery.executors.celery_executor import CeleryExecutor
+
+from tests_common.test_utils.config import conf_vars
+
+pytestmark = pytest.mark.db_test
 
 # Can not be `--snake_case` or contain uppercase letter
 ILLEGAL_LONG_OPTION_PATTERN = re.compile("^--[a-z]+_[a-z]+|^--.*[A-Z].*")
@@ -96,7 +104,7 @@ class TestCli:
             for com in command:
                 conflict_arg = [arg for arg, count in Counter(com.args).items() if count > 1]
                 assert (
-                    [] == conflict_arg
+                    conflict_arg == []
                 ), f"Command group {group} function {com.name} have conflict args name {conflict_arg}"
 
     def test_subcommand_arg_flag_conflict(self):
@@ -114,7 +122,7 @@ class TestCli:
                     a.flags[0] for a in com.args if (len(a.flags) == 1 and not a.flags[0].startswith("-"))
                 ]
                 conflict_position = [arg for arg, count in Counter(position).items() if count > 1]
-                assert [] == conflict_position, (
+                assert conflict_position == [], (
                     f"Command group {group} function {com.name} have conflict "
                     f"position flags {conflict_position}"
                 )
@@ -123,14 +131,14 @@ class TestCli:
                     a.flags[0] for a in com.args if (len(a.flags) == 1 and a.flags[0].startswith("-"))
                 ] + [a.flags[1] for a in com.args if len(a.flags) == 2]
                 conflict_long_option = [arg for arg, count in Counter(long_option).items() if count > 1]
-                assert [] == conflict_long_option, (
+                assert conflict_long_option == [], (
                     f"Command group {group} function {com.name} have conflict "
                     f"long option flags {conflict_long_option}"
                 )
 
                 short_option = [a.flags[0] for a in com.args if len(a.flags) == 2]
                 conflict_short_option = [arg for arg, count in Counter(short_option).items() if count > 1]
-                assert [] == conflict_short_option, (
+                assert conflict_short_option == [], (
                     f"Command group {group} function {com.name} have conflict "
                     f"short option flags {conflict_short_option}"
                 )
@@ -154,9 +162,112 @@ class TestCli:
                 args=[],
             )
         ]
+        reload(executor_loader)
         with pytest.raises(CliConflictError, match="test_command"):
             # force re-evaluation of cli commands (done in top level code)
             reload(cli_parser)
+
+    @patch.object(CeleryExecutor, "get_cli_commands")
+    @patch.object(AwsEcsExecutor, "get_cli_commands")
+    def test_hybrid_executor_get_cli_commands(
+        self, ecs_executor_cli_commands_mock, celery_executor_cli_commands_mock
+    ):
+        """Test that if multiple executors are configured, then every executor loads its commands."""
+        ecs_executor_command = ActionCommand(
+            name="ecs_command",
+            help="test command for ecs executor",
+            func=lambda: None,
+            args=[],
+        )
+        ecs_executor_cli_commands_mock.return_value = [ecs_executor_command]
+
+        celery_executor_command = ActionCommand(
+            name="celery_command",
+            help="test command for celery executor",
+            func=lambda: None,
+            args=[],
+        )
+        celery_executor_cli_commands_mock.return_value = [celery_executor_command]
+        reload(executor_loader)
+        executor_loader.ExecutorLoader.get_executor_names = mock.Mock(
+            return_value=[
+                ExecutorName("airflow.providers.celery.executors.celery_executor.CeleryExecutor"),
+                ExecutorName("airflow.providers.amazon.aws.executors.ecs.ecs_executor.AwsEcsExecutor"),
+            ]
+        )
+
+        reload(cli_parser)
+        commands = [command.name for command in cli_parser.airflow_commands]
+        assert celery_executor_command.name in commands
+        assert ecs_executor_command.name in commands
+
+    @patch.object(CeleryExecutor, "get_cli_commands")
+    @patch.object(AwsEcsExecutor, "get_cli_commands")
+    def test_hybrid_executor_get_cli_commands_with_error(
+        self, ecs_executor_cli_commands_mock, celery_executor_cli_commands_mock, caplog
+    ):
+        """Test that if multiple executors are configured, then every executor loads its commands.
+        If the executor fails to load its commands, the CLI should log the error, and continue loading"""
+        caplog.set_level("ERROR")
+        ecs_executor_command = ActionCommand(
+            name="ecs_command",
+            help="test command for ecs executor",
+            func=lambda: None,
+            args=[],
+        )
+        ecs_executor_cli_commands_mock.side_effect = Exception()
+
+        celery_executor_command = ActionCommand(
+            name="celery_command",
+            help="test command for celery executor",
+            func=lambda: None,
+            args=[],
+        )
+        celery_executor_cli_commands_mock.return_value = [celery_executor_command]
+        reload(executor_loader)
+        executor_loader.ExecutorLoader.get_executor_names = mock.Mock(
+            return_value=[
+                ExecutorName("airflow.providers.amazon.aws.executors.ecs.ecs_executor.AwsEcsExecutor"),
+                ExecutorName("airflow.providers.celery.executors.celery_executor.CeleryExecutor"),
+            ]
+        )
+
+        reload(cli_parser)
+        commands = [command.name for command in cli_parser.airflow_commands]
+        assert celery_executor_command.name in commands
+        assert ecs_executor_command.name not in commands
+        assert (
+            "Failed to load CLI commands from executor: ::airflow.providers.amazon.aws.executors.ecs.ecs_executor.AwsEcsExecutor"
+            in caplog.messages[0]
+        )
+
+    @patch.object(AwsEcsExecutor, "get_cli_commands")
+    def test_cli_parser_fail_to_load_executor(self, ecs_executor_cli_commands_mock, caplog):
+        caplog.set_level("ERROR")
+
+        ecs_executor_command = ActionCommand(
+            name="ecs_command",
+            help="test command for ecs executor",
+            func=lambda: None,
+            args=[],
+        )
+        ecs_executor_cli_commands_mock.return_value = [ecs_executor_command]
+
+        reload(executor_loader)
+        executor_loader.ExecutorLoader.get_executor_names = mock.Mock(
+            return_value=[
+                ExecutorName("airflow.providers.incorrect.executor.Executor"),
+                ExecutorName("airflow.providers.amazon.aws.executors.ecs.ecs_executor.AwsEcsExecutor"),
+            ]
+        )
+
+        reload(cli_parser)
+        commands = [command.name for command in cli_parser.airflow_commands]
+        assert ecs_executor_command.name in commands
+        assert (
+            "Failed to load CLI commands from executor: ::airflow.providers.incorrect.executor.Executor"
+            in caplog.messages[0]
+        )
 
     def test_falsy_default_value(self):
         arg = cli_config.Arg(("--test",), default=0, type=int)
@@ -222,11 +333,12 @@ class TestCli:
                 parser.parse_args([*cmd_args, "--help"])
 
     def test_positive_int(self):
-        assert 1 == cli_config.positive_int(allow_zero=True)("1")
-        assert 0 == cli_config.positive_int(allow_zero=True)("0")
+        assert cli_config.positive_int(allow_zero=True)("1") == 1
+        assert cli_config.positive_int(allow_zero=True)("0") == 0
 
         with pytest.raises(argparse.ArgumentTypeError):
             cli_config.positive_int(allow_zero=False)("0")
+        with pytest.raises(argparse.ArgumentTypeError):
             cli_config.positive_int(allow_zero=True)("-1")
 
     @pytest.mark.parametrize(
@@ -237,9 +349,11 @@ class TestCli:
         ],
     )
     def test_executor_specific_commands_not_accessible(self, command):
-        with conf_vars({("core", "executor"): "SequentialExecutor"}), contextlib.redirect_stderr(
-            StringIO()
-        ) as stderr:
+        with (
+            conf_vars({("core", "executor"): "SequentialExecutor"}),
+            contextlib.redirect_stderr(StringIO()) as stderr,
+        ):
+            reload(executor_loader)
             reload(cli_parser)
             parser = cli_parser.get_parser()
             with pytest.raises(SystemExit):
@@ -267,9 +381,11 @@ class TestCli:
     def test_cli_parser_executors(self, executor, expected_args):
         """Test that CLI commands for the configured executor are present"""
         for expected_arg in expected_args:
-            with conf_vars({("core", "executor"): executor}), contextlib.redirect_stderr(
-                StringIO()
-            ) as stderr:
+            with (
+                conf_vars({("core", "executor"): executor}),
+                contextlib.redirect_stderr(StringIO()) as stderr,
+            ):
+                reload(executor_loader)
                 reload(cli_parser)
                 parser = cli_parser.get_parser()
                 with pytest.raises(SystemExit) as e:  # running the help command exits, so we prevent that
@@ -281,8 +397,8 @@ class TestCli:
     def test_non_existing_directory_raises_when_metavar_is_dir_for_db_export_cleaned(self):
         """Test that the error message is correct when the directory does not exist."""
         with contextlib.redirect_stderr(StringIO()) as stderr:
+            parser = cli_parser.get_parser()
             with pytest.raises(SystemExit):
-                parser = cli_parser.get_parser()
                 parser.parse_args(["db", "export-archived", "--output-path", "/non/existing/directory"])
             error_msg = stderr.getvalue()
 
@@ -298,16 +414,14 @@ class TestCli:
     ):
         """Test that invalid choice raises for export-format in db export-cleaned command."""
         with contextlib.redirect_stderr(StringIO()) as stderr:
+            parser = cli_parser.get_parser()
             with pytest.raises(SystemExit):
-                parser = cli_parser.get_parser()
                 parser.parse_args(
                     ["db", "export-archived", "--export-format", export_format, "--output-path", "mydir"]
                 )
             error_msg = stderr.getvalue()
-        assert error_msg == (
-            "\nairflow db export-archived command error: argument "
-            f"--export-format: invalid choice: '{export_format}' "
-            "(choose from 'csv'), see help above.\n"
+        assert (
+            "airflow db export-archived command error: argument --export-format: invalid choice" in error_msg
         )
 
     @pytest.mark.parametrize(

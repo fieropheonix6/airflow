@@ -35,14 +35,87 @@ For high-level changelog, see :doc:`package information including changelog <ind
 
 
 
+1.9.0
+.....
+
+Latest change: 2024-12-16
+
+=================================================================================================  ===========  ====================================================================
+Commit                                                                                             Committed    Subject
+=================================================================================================  ===========  ====================================================================
+`4b38bed76c <https://github.com/apache/airflow/commit/4b38bed76c1ea5fe84a6bc678ce87e20d563adc0>`_  2024-12-16   ``Bump min version of Providers to 2.9 (#44956)``
+`1275fec92f <https://github.com/apache/airflow/commit/1275fec92fd7cd7135b100d66d41bdcb79ade29d>`_  2024-11-24   ``Use Python 3.9 as target version for Ruff & Black rules (#44298)``
+=================================================================================================  ===========  ====================================================================
+
+1.8.1
+.....
+
+Latest change: 2024-11-14
+
+=================================================================================================  ===========  ========================================================================================
+Commit                                                                                             Committed    Subject
+=================================================================================================  ===========  ========================================================================================
+`a53d9f6d25 <https://github.com/apache/airflow/commit/a53d9f6d257f193ea5026ba4cd007d5ddeab968f>`_  2024-11-14   ``Prepare docs for Nov 1st wave of providers (#44011)``
+`857ca4c06c <https://github.com/apache/airflow/commit/857ca4c06c9008593674cabdd28d3c30e3e7f97b>`_  2024-10-09   ``Split providers out of the main "airflow/" tree into a UV workspace project (#42505)``
+`a5ffbbda17 <https://github.com/apache/airflow/commit/a5ffbbda17450a5c99037b292844087119b5676a>`_  2024-10-09   ``Standard provider bash operator (#42252)``
+`55fe75d083 <https://github.com/apache/airflow/commit/55fe75d083499c6fbaaca35d6dbad4487f4a9ad0>`_  2024-09-25   ``Purge existing SLA implementation (#42285)``
+`e8a5996891 <https://github.com/apache/airflow/commit/e8a59968918e84a6221cd72cb3a8c6ddb563840c>`_  2024-08-26   ``Unify DAG schedule args and change default to None (#41453)``
+=================================================================================================  ===========  ========================================================================================
+
+1.8.0
+.....
+
+Latest change: 2024-08-19
+
+=================================================================================================  ===========  =======================================================================
+Commit                                                                                             Committed    Subject
+=================================================================================================  ===========  =======================================================================
+`75fb7acbac <https://github.com/apache/airflow/commit/75fb7acbaca09a040067f0a5a37637ff44eb9e14>`_  2024-08-19   ``Prepare docs for Aug 2nd wave of providers (#41559)``
+`fcbff15bda <https://github.com/apache/airflow/commit/fcbff15bda151f70db0ca13fdde015bace5527c4>`_  2024-08-12   ``Bump minimum Airflow version in providers to Airflow 2.8.0 (#41396)``
+`d23881c648 <https://github.com/apache/airflow/commit/d23881c6489916113921dcedf85077441b44aaf3>`_  2024-08-03   ``Prepare docs for Aug 1st wave of providers (#41230)``
+`09a7bd1d58 <https://github.com/apache/airflow/commit/09a7bd1d585d2d306dd30435689f22b614fe0abf>`_  2024-07-09   ``Prepare docs 1st wave July 2024 (#40644)``
+`a62bd83188 <https://github.com/apache/airflow/commit/a62bd831885957c55b073bf309bc59a1d505e8fb>`_  2024-06-27   ``Enable enforcing pydocstyle rule D213 in ruff. (#40448)``
+=================================================================================================  ===========  =======================================================================
+
+1.7.1
+.....
+
+Latest change: 2024-05-26
+
+=================================================================================================  ===========  ================================================
+Commit                                                                                             Committed    Subject
+=================================================================================================  ===========  ================================================
+`34500f3a2f <https://github.com/apache/airflow/commit/34500f3a2fa4652272bc831e3c18fd2a6a2da5ef>`_  2024-05-26   ``Prepare docs 3rd wave May 2024 (#39738)``
+`2b1a2f8d56 <https://github.com/apache/airflow/commit/2b1a2f8d561e569df194c4ee0d3a18930738886e>`_  2024-05-11   ``Reapply templates for all providers (#39554)``
+`2c05187b07 <https://github.com/apache/airflow/commit/2c05187b07baf7c41a32b18fabdbb3833acc08eb>`_  2024-05-10   ``Faster 'airflow_version' imports (#39552)``
+`73918925ed <https://github.com/apache/airflow/commit/73918925edaf1c94790a6ad8bec01dec60accfa1>`_  2024-05-08   ``Simplify 'airflow_version' imports (#39497)``
+=================================================================================================  ===========  ================================================
+
+1.7.0
+.....
+
+Latest change: 2024-05-01
+
+=================================================================================================  ===========  =======================================================================
+Commit                                                                                             Committed    Subject
+=================================================================================================  ===========  =======================================================================
+`fe4605a10e <https://github.com/apache/airflow/commit/fe4605a10e26f1b8a180979ba5765d1cb7fb0111>`_  2024-05-01   ``Prepare docs 1st wave May 2024 (#39328)``
+`ead9b00f7c <https://github.com/apache/airflow/commit/ead9b00f7cd5acecf9d575c459bb62633088436a>`_  2024-04-25   ``Bump minimum Airflow version in providers to Airflow 2.7.0 (#39240)``
+`5fa80b6aea <https://github.com/apache/airflow/commit/5fa80b6aea60f93cdada66f160e2b54f723865ca>`_  2024-04-10   ``Prepare docs 1st wave (RC1) April 2024 (#38863)``
+`b5b972a106 <https://github.com/apache/airflow/commit/b5b972a1068e19b09d48ec4d7663dd1d996d594f>`_  2024-03-18   ``Update yanked versions in providers changelogs (#38262)``
+`0a74928894 <https://github.com/apache/airflow/commit/0a74928894fb57b0160208262ccacad12da23fc7>`_  2024-03-18   ``Bump ruff to 0.3.3 (#38240)``
+`2523cbf3ca <https://github.com/apache/airflow/commit/2523cbf3caa3b7552b5f06de165aa93bfb6718f5>`_  2024-03-18   ``bump mypy version to 1.9.0 (#38239)``
+=================================================================================================  ===========  =======================================================================
+
 1.6.1
 .....
 
-Latest change: 2024-02-27
+Latest change: 2024-03-04
 
 =================================================================================================  ===========  ====================================================================================================================
 Commit                                                                                             Committed    Subject
 =================================================================================================  ===========  ====================================================================================================================
+`83316b8158 <https://github.com/apache/airflow/commit/83316b81584c9e516a8142778fc509f19d95cc3e>`_  2024-03-04   ``Prepare docs 1st wave (RC1) March 2024 (#37876)``
 `5b31b63203 <https://github.com/apache/airflow/commit/5b31b63203391dd39f485f1c9013ea55c83ed1aa>`_  2024-02-27   ``Deprecate smtp configs in airflow settings / local_settings (#37711)``
 `84a8f7ecc1 <https://github.com/apache/airflow/commit/84a8f7ecc122e9b63d4d2834ee8994587c467eb2>`_  2024-02-26   ``Fix backwards compatibility for SMTP provider (#37701)``
 `5a0be392e6 <https://github.com/apache/airflow/commit/5a0be392e66f8e5426ba3478621115e92fcf245b>`_  2024-02-16   ``Add comment about versions updated by release manager (#37488)``
@@ -82,6 +155,8 @@ Commit                                                                          
 `0b23d5601c <https://github.com/apache/airflow/commit/0b23d5601c6f833392b0ea816e651dcb13a14685>`_  2023-11-24   ``Prepare docs 2nd wave of Providers November 2023 (#35836)``
 `99534e47f3 <https://github.com/apache/airflow/commit/99534e47f330ce0efb96402629dda5b2a4f16e8f>`_  2023-11-19   ``Use reproducible builds for provider packages (#35693)``
 `99df205f42 <https://github.com/apache/airflow/commit/99df205f42a754aa67f80b5983e1d228ff23267f>`_  2023-11-16   ``Fix and reapply templates for provider documentation (#35686)``
+`706878ec35 <https://github.com/apache/airflow/commit/706878ec354cf867440c367a95c85753c19e54de>`_  2023-11-04   ``Remove empty lines in generated changelog (#35436)``
+`052e26ad47 <https://github.com/apache/airflow/commit/052e26ad473a9d50f0b96456ed094f2087ee4434>`_  2023-11-04   ``Change security.rst to use includes in providers (#35435)``
 =================================================================================================  ===========  =======================================================================
 
 1.4.1
@@ -147,10 +222,12 @@ Commit                                                                          
 `60677b0ba3 <https://github.com/apache/airflow/commit/60677b0ba3c9e81595ec2aa3d4be2737e5b32054>`_  2023-08-05   ``Prepare docs for Aug 2023 1st wave of Providers (#33128)``
 `cf7e0c5aa5 <https://github.com/apache/airflow/commit/cf7e0c5aa5ccc7b8a3963b14eadde0c8bc7c4eb7>`_  2023-08-04   ``Add possibility to use 'ssl_context' extra for SMTP and IMAP connections (#33112)``
 `e20325db38 <https://github.com/apache/airflow/commit/e20325db38fdfdd9db423a345b13d18aab6fe578>`_  2023-08-04   ``Allows to choose SSL context for SMTP provider (#33075)``
+`73b90c48b1 <https://github.com/apache/airflow/commit/73b90c48b1933b49086d34176527947bd727ec85>`_  2023-07-21   ``Allow configuration to be contributed by providers (#32604)``
 `225e3041d2 <https://github.com/apache/airflow/commit/225e3041d269698d0456e09586924c1898d09434>`_  2023-07-06   ``Prepare docs for July 2023 wave of Providers (RC2) (#32381)``
 `e45bee8840 <https://github.com/apache/airflow/commit/e45bee884068399e7265421511e17fed106ce5b4>`_  2023-07-05   ``D205 Support - Providers: Pagerduty to SMTP (inclusive) (#32358)``
 `3878fe6fab <https://github.com/apache/airflow/commit/3878fe6fab3ccc1461932b456c48996f2763139f>`_  2023-07-05   ``Remove spurious headers for provider changelogs (#32373)``
 `09d4718d3a <https://github.com/apache/airflow/commit/09d4718d3a46aecf3355d14d3d23022002f4a818>`_  2023-06-27   ``Improve provider documentation and README structure (#32125)``
+`e4ca68818e <https://github.com/apache/airflow/commit/e4ca68818eec0f29ef04a1a5bfec3241ea03bf8c>`_  2023-06-23   ``Adapt Notifier for sla_miss_callback (#31887)``
 =================================================================================================  ===========  =====================================================================================
 
 1.2.0
@@ -163,6 +240,7 @@ Commit                                                                          
 =================================================================================================  ===========  =============================================================
 `79bcc2e668 <https://github.com/apache/airflow/commit/79bcc2e668e648098aad6eaa87fe8823c76bc69a>`_  2023-06-20   ``Prepare RC1 docs for June 2023 wave of Providers (#32001)``
 `8b146152d6 <https://github.com/apache/airflow/commit/8b146152d62118defb3004c997c89c99348ef948>`_  2023-06-20   ``Add note about dropping Python 3.7 for providers (#32015)``
+`eb27641a74 <https://github.com/apache/airflow/commit/eb27641a74a1f591abae28737b9881f588b08d7c>`_  2023-06-19   ``Add smtp notification guide to index.rst (#32006)``
 `b7796895cb <https://github.com/apache/airflow/commit/b7796895cb41d8e5e79e6d8eee150b11d8c302a7>`_  2023-06-07   ``Fix ruff static check (#31762)``
 `cce4ca5505 <https://github.com/apache/airflow/commit/cce4ca55058b605d19841bb9d43043f0d45665cb>`_  2023-06-07   ``Add notifier for Smtp (#31359)``
 `a59076eaee <https://github.com/apache/airflow/commit/a59076eaeed03dd46e749ad58160193b4ef3660c>`_  2023-06-02   ``Add D400 pydocstyle check - Providers (#31427)``
@@ -179,6 +257,7 @@ Commit                                                                          
 `45548b9451 <https://github.com/apache/airflow/commit/45548b9451fba4e48c6f0c0ba6050482c2ea2956>`_  2023-05-19   ``Prepare RC2 docs for May 2023 wave of Providers (#31416)``
 `abea189022 <https://github.com/apache/airflow/commit/abea18902257c0250fedb764edda462f9e5abc84>`_  2023-05-18   ``Use '__version__' in providers not 'version' (#31393)``
 `f5aed58d9f <https://github.com/apache/airflow/commit/f5aed58d9fb2137fa5f0e3ce75b6709bf8393a94>`_  2023-05-18   ``Fixing circular import error in providers caused by airflow version check (#31379)``
+`7ebda3898d <https://github.com/apache/airflow/commit/7ebda3898db2eee72d043a9565a674dea72cd8fa>`_  2023-05-17   ``Fix missing line in index.rst for provider documentation (#31343)``
 `d9ff55cf6d <https://github.com/apache/airflow/commit/d9ff55cf6d95bb342fed7a87613db7b9e7c8dd0f>`_  2023-05-16   ``Prepare docs for May 2023 wave of Providers (#31252)``
 `eef5bc7f16 <https://github.com/apache/airflow/commit/eef5bc7f166dc357fea0cc592d39714b1a5e3c14>`_  2023-05-03   ``Add full automation for min Airflow version for providers (#30994)``
 `a7eb32a5b2 <https://github.com/apache/airflow/commit/a7eb32a5b222e236454d3e474eec478ded7c368d>`_  2023-04-30   ``Bump minimum Airflow version in providers (#30917)``
@@ -201,10 +280,11 @@ Commit                                                                          
 1.0.0
 .....
 
-Latest change: 2023-03-14
+Latest change: 2023-04-02
 
-=================================================================================================  ===========  ===================================
+=================================================================================================  ===========  ==========================================================
 Commit                                                                                             Committed    Subject
-=================================================================================================  ===========  ===================================
+=================================================================================================  ===========  ==========================================================
+`55dbf1ff1f <https://github.com/apache/airflow/commit/55dbf1ff1fb0b22714f695a66f6108b3249d1199>`_  2023-04-02   ``Prepare docs for April 2023 wave of Providers (#30378)``
 `3fac5c3540 <https://github.com/apache/airflow/commit/3fac5c35409ccfde771ce08ea8daeaac056b2c10>`_  2023-03-14   ``Creating SMTP provider (#29968)``
-=================================================================================================  ===========  ===================================
+=================================================================================================  ===========  ==========================================================

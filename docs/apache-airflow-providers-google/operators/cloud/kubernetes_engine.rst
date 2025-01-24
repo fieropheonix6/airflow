@@ -43,7 +43,7 @@ Create GKE cluster
 
 Here is an example of a cluster definition:
 
-.. exampleinclude:: /../../tests/system/providers/google/cloud/kubernetes_engine/example_kubernetes_engine.py
+.. exampleinclude:: /../../providers/tests/system/google/cloud/kubernetes_engine/example_kubernetes_engine.py
     :language: python
     :start-after: [START howto_operator_gcp_gke_create_cluster_definition]
     :end-before: [END howto_operator_gcp_gke_create_cluster_definition]
@@ -53,7 +53,7 @@ A dict object like this, or a
 definition, is required when creating a cluster with
 :class:`~airflow.providers.google.cloud.operators.kubernetes_engine.GKECreateClusterOperator`.
 
-.. exampleinclude:: /../../tests/system/providers/google/cloud/kubernetes_engine/example_kubernetes_engine.py
+.. exampleinclude:: /../../providers/tests/system/google/cloud/kubernetes_engine/example_kubernetes_engine.py
     :language: python
     :dedent: 4
     :start-after: [START howto_operator_gke_create_cluster]
@@ -64,7 +64,7 @@ possibility to free up the worker when it knows it has to wait, and hand off the
 As a result, while it is suspended (deferred), it is not taking up a worker slot and your cluster will have a
 lot less resources wasted on idle Operators or Sensors:
 
-.. exampleinclude:: /../../tests/system/providers/google/cloud/kubernetes_engine/example_kubernetes_engine_async.py
+.. exampleinclude:: /../../providers/tests/system/google/cloud/kubernetes_engine/example_kubernetes_engine_async.py
     :language: python
     :dedent: 4
     :start-after: [START howto_operator_gke_create_cluster_async]
@@ -84,7 +84,7 @@ To install and use Kueue on your cluster with the help of
 :class:`~airflow.providers.google.cloud.operators.kubernetes_engine.GKEStartKueueInsideClusterOperator`
 as shown in this example:
 
-.. exampleinclude:: /../../tests/system/providers/google/cloud/kubernetes_engine/example_kubernetes_engine_kueue.py
+.. exampleinclude:: /../../providers/tests/system/google/cloud/kubernetes_engine/example_kubernetes_engine_kueue.py
     :language: python
     :start-after: [START howto_operator_gke_install_kueue]
     :end-before: [END howto_operator_gke_install_kueue]
@@ -99,7 +99,7 @@ To delete a cluster, use
 :class:`~airflow.providers.google.cloud.operators.kubernetes_engine.GKEDeleteClusterOperator`.
 This would also delete all the nodes allocated to the cluster.
 
-.. exampleinclude:: /../../tests/system/providers/google/cloud/kubernetes_engine/example_kubernetes_engine.py
+.. exampleinclude:: /../../providers/tests/system/google/cloud/kubernetes_engine/example_kubernetes_engine.py
     :language: python
     :dedent: 4
     :start-after: [START howto_operator_gke_delete_cluster]
@@ -110,7 +110,7 @@ possibility to free up the worker when it knows it has to wait, and hand off the
 As a result, while it is suspended (deferred), it is not taking up a worker slot and your cluster will have a
 lot less resources wasted on idle Operators or Sensors:
 
-.. exampleinclude:: /../../tests/system/providers/google/cloud/kubernetes_engine/example_kubernetes_engine_async.py
+.. exampleinclude:: /../../providers/tests/system/google/cloud/kubernetes_engine/example_kubernetes_engine_async.py
     :language: python
     :dedent: 4
     :start-after: [START howto_operator_gke_delete_cluster_async]
@@ -167,7 +167,7 @@ is the path ``/airflow/xcom``. To provide values to the XCom, ensure your Pod wr
 ``return.json`` in the sidecar. The contents of this can then be used downstream in your DAG.
 Here is an example of it being used:
 
-.. exampleinclude:: /../../tests/system/providers/google/cloud/kubernetes_engine/example_kubernetes_engine.py
+.. exampleinclude:: /../../providers/tests/system/google/cloud/kubernetes_engine/example_kubernetes_engine.py
     :language: python
     :dedent: 4
     :start-after: [START howto_operator_gke_start_pod_xcom]
@@ -175,7 +175,7 @@ Here is an example of it being used:
 
 And then use it in other operators:
 
-.. exampleinclude:: /../../tests/system/providers/google/cloud/kubernetes_engine/example_kubernetes_engine.py
+.. exampleinclude:: /../../providers/tests/system/google/cloud/kubernetes_engine/example_kubernetes_engine.py
     :language: python
     :dedent: 4
     :start-after: [START howto_operator_gke_xcom_result]
@@ -186,7 +186,7 @@ possibility to free up the worker when it knows it has to wait, and hand off the
 As a result, while it is suspended (deferred), it is not taking up a worker slot and your cluster will have a
 lot less resources wasted on idle Operators or Sensors:
 
-.. exampleinclude:: /../../tests/system/providers/google/cloud/kubernetes_engine/example_kubernetes_engine_async.py
+.. exampleinclude:: /../../providers/tests/system/google/cloud/kubernetes_engine/example_kubernetes_engine_async.py
     :language: python
     :dedent: 4
     :start-after: [START howto_operator_gke_start_pod_xcom_async]
@@ -207,11 +207,140 @@ There are two operators available in order to run a job on a GKE cluster:
 There is no need to manage the ``kube_config`` file, as it will be generated automatically.
 All Kubernetes parameters (except ``config_file``) are also valid for the ``GKEStartJobOperator``.
 
-.. exampleinclude:: /../../tests/system/providers/google/cloud/kubernetes_engine/example_kubernetes_engine_job.py
+.. exampleinclude:: /../../providers/tests/system/google/cloud/kubernetes_engine/example_kubernetes_engine_job.py
     :language: python
     :dedent: 4
     :start-after: [START howto_operator_gke_start_job]
     :end-before: [END howto_operator_gke_start_job]
+
+``GKEStartJobOperator`` also supports deferrable mode. Note that it makes sense only if the ``wait_until_job_complete``
+parameter is set ``True``.
+
+.. exampleinclude:: /../../providers/tests/system/google/cloud/kubernetes_engine/example_kubernetes_engine_job.py
+    :language: python
+    :dedent: 4
+    :start-after: [START howto_operator_gke_start_job_def]
+    :end-before: [END howto_operator_gke_start_job_def]
+
+For run Job on a GKE cluster with Kueue enabled use ``GKEStartKueueJobOperator``.
+
+.. exampleinclude:: /../../providers/tests/system/google/cloud/kubernetes_engine/example_kubernetes_engine_kueue.py
+    :language: python
+    :dedent: 4
+    :start-after: [START howto_operator_kueue_start_job]
+    :end-before: [END howto_operator_kueue_start_job]
+
+
+.. _howto/operator:GKEDeleteJobOperator:
+
+Delete a Job on a GKE cluster
+"""""""""""""""""""""""""""""
+
+There are two operators available in order to delete a job on a GKE cluster:
+
+* :class:`~airflow.providers.cncf.kubernetes.operators.job.KubernetesDeleteJobOperator`
+* :class:`~airflow.providers.google.cloud.operators.kubernetes_engine.GKEDeleteJobOperator`
+
+``GKEDeleteJobOperator`` extends ``KubernetesDeleteJobOperator`` to provide authorization using Google Cloud credentials.
+There is no need to manage the ``kube_config`` file, as it will be generated automatically.
+All Kubernetes parameters (except ``config_file``) are also valid for the ``GKEDeleteJobOperator``.
+
+.. exampleinclude:: /../../providers/tests/system/google/cloud/kubernetes_engine/example_kubernetes_engine_job.py
+    :language: python
+    :dedent: 4
+    :start-after: [START howto_operator_gke_delete_job]
+    :end-before: [END howto_operator_gke_delete_job]
+
+
+.. _howto/operator:GKEDescribeJobOperator:
+
+Retrieve information about Job by given name
+""""""""""""""""""""""""""""""""""""""""""""
+
+You can use :class:`~airflow.providers.google.cloud.operators.kubernetes_engine.GKEDescribeJobOperator` to retrieve
+detailed description of existing Job by providing its name and namespace.
+
+.. exampleinclude:: /../../providers/tests/system/google/cloud/kubernetes_engine/example_kubernetes_engine_job.py
+    :language: python
+    :dedent: 4
+    :start-after: [START howto_operator_gke_describe_job]
+    :end-before: [END howto_operator_gke_describe_job]
+
+
+.. _howto/operator:GKEListJobsOperator:
+
+Retrieve list of Jobs
+"""""""""""""""""""""
+
+You can use :class:`~airflow.providers.google.cloud.operators.kubernetes_engine.GKEListJobsOperator` to retrieve
+list of existing Jobs. If ``namespace`` parameter is provided, output will include Jobs across given namespace.
+If ``namespace`` parameter is not specified, the information across all the namespaces will be outputted.
+
+.. exampleinclude:: /../../providers/tests/system/google/cloud/kubernetes_engine/example_kubernetes_engine_job.py
+    :language: python
+    :dedent: 4
+    :start-after: [START howto_operator_gke_list_jobs]
+    :end-before: [END howto_operator_gke_list_jobs]
+
+
+.. _howto/operator:GKECreateCustomResourceOperator:
+
+Create a resource in a GKE cluster
+""""""""""""""""""""""""""""""""""
+
+You can use :class:`~airflow.providers.google.cloud.operators.kubernetes_engine.GKECreateCustomResourceOperator` to
+create resource in the specified Google Kubernetes Engine cluster.
+
+.. exampleinclude:: /../../providers/tests/system/google/cloud/kubernetes_engine/example_kubernetes_engine_resource.py
+    :language: python
+    :dedent: 4
+    :start-after: [START howto_operator_gke_create_resource]
+    :end-before: [END howto_operator_gke_create_resource]
+
+
+.. _howto/operator:GKEDeleteCustomResourceOperator:
+
+Delete a resource in a GKE cluster
+""""""""""""""""""""""""""""""""""
+
+You can use :class:`~airflow.providers.google.cloud.operators.kubernetes_engine.GKEDeleteCustomResourceOperator` to
+delete resource in the specified Google Kubernetes Engine cluster.
+
+.. exampleinclude:: /../../providers/tests/system/google/cloud/kubernetes_engine/example_kubernetes_engine_resource.py
+    :language: python
+    :dedent: 4
+    :start-after: [START howto_operator_gke_delete_resource]
+    :end-before: [END howto_operator_gke_delete_resource]
+
+
+.. _howto/operator:GKESuspendJobOperator:
+
+Suspend a Job on a GKE cluster
+""""""""""""""""""""""""""""""
+
+You can use :class:`~airflow.providers.google.cloud.operators.kubernetes_engine.GKESuspendJobOperator` to
+suspend Job in the specified Google Kubernetes Engine cluster.
+
+.. exampleinclude:: /../../providers/tests/system/google/cloud/kubernetes_engine/example_kubernetes_engine_job.py
+    :language: python
+    :dedent: 4
+    :start-after: [START howto_operator_gke_suspend_job]
+    :end-before: [END howto_operator_gke_suspend_job]
+
+
+.. _howto/operator:GKEResumeJobOperator:
+
+Resume a Job on a GKE cluster
+"""""""""""""""""""""""""""""
+
+You can use :class:`~airflow.providers.google.cloud.operators.kubernetes_engine.GKEResumeJobOperator` to
+resume Job in the specified Google Kubernetes Engine cluster.
+
+.. exampleinclude:: /../../providers/tests/system/google/cloud/kubernetes_engine/example_kubernetes_engine_job.py
+    :language: python
+    :dedent: 4
+    :start-after: [START howto_operator_gke_resume_job]
+    :end-before: [END howto_operator_gke_resume_job]
 
 Reference
 ^^^^^^^^^

@@ -21,11 +21,11 @@ import logging
 import pendulum
 
 import airflow
+from airflow.api_fastapi.app import get_auth_manager
 from airflow.configuration import conf
 from airflow.settings import IS_K8S_OR_K8SCELERY_EXECUTOR, STATE_COLORS
 from airflow.utils.net import get_hostname
 from airflow.utils.platform import get_airflow_git_version
-from airflow.www.extensions.init_auth_manager import get_auth_manager
 
 logger = logging.getLogger(__name__)
 
@@ -76,6 +76,8 @@ def init_jinja_globals(app):
             "k8s_or_k8scelery_executor": IS_K8S_OR_K8SCELERY_EXECUTOR,
             "rest_api_enabled": False,
             "config_test_connection": conf.get("core", "test_connection", fallback="Disabled"),
+            "included_events_raw": conf.get("webserver", "audit_view_included_events", fallback=""),
+            "excluded_events_raw": conf.get("webserver", "audit_view_excluded_events", fallback=""),
         }
 
         # Extra global specific to auth manager
@@ -90,6 +92,7 @@ def init_jinja_globals(app):
                 {
                     "analytics_tool": conf.get("webserver", "ANALYTICS_TOOL"),
                     "analytics_id": conf.get("webserver", "ANALYTICS_ID"),
+                    "analytics_url": conf.get("webserver", "ANALYTICS_URL"),
                 }
             )
 

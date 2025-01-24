@@ -17,14 +17,13 @@
 # under the License.
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, TypedDict
 
 from sqlalchemy import Boolean, Column, Integer, String, Text, func, select
 
 from airflow.exceptions import AirflowException, PoolNotFound
 from airflow.models.base import Base
 from airflow.ti_deps.dependencies_states import EXECUTION_STATES
-from airflow.typing_compat import TypedDict
 from airflow.utils.db import exists_query
 from airflow.utils.session import NEW_SESSION, provide_session
 from airflow.utils.sqlalchemy import with_row_locks
@@ -42,6 +41,7 @@ class PoolStats(TypedDict):
     deferred: int
     queued: int
     open: int
+    scheduled: int
 
 
 class Pool(Base):
@@ -178,11 +178,14 @@ class Pool(Base):
         for pool_name, total_slots, include_deferred in pool_rows:
             if total_slots == -1:
                 total_slots = float("inf")  # type: ignore
-            pools[pool_name] = PoolStats(total=total_slots, running=0, queued=0, open=0, deferred=0)
+            pools[pool_name] = PoolStats(
+                total=total_slots, running=0, queued=0, open=0, deferred=0, scheduled=0
+            )
             pool_includes_deferred[pool_name] = include_deferred
 
         allowed_execution_states = EXECUTION_STATES | {
             TaskInstanceState.DEFERRED,
+            TaskInstanceState.SCHEDULED,
         }
         state_count_by_pool = session.execute(
             select(TaskInstance.pool, TaskInstance.state, func.sum(TaskInstance.pool_slots))
@@ -205,6 +208,8 @@ class Pool(Base):
                 stats_dict["queued"] = count
             elif state == TaskInstanceState.DEFERRED:
                 stats_dict["deferred"] = count
+            elif state == TaskInstanceState.SCHEDULED:
+                stats_dict["scheduled"] = count
             else:
                 raise AirflowException(f"Unexpected state. Expected values: {allowed_execution_states}.")
 

@@ -27,7 +27,13 @@ from airflow.operators.empty import EmptyOperator
 from airflow.utils import timezone
 from airflow.utils.session import create_session
 from airflow.utils.state import State
-from tests.test_utils.db import clear_db_dags, clear_db_pools, clear_db_runs, set_default_pool_slots
+
+from tests_common.test_utils.db import (
+    clear_db_dags,
+    clear_db_pools,
+    clear_db_runs,
+    set_default_pool_slots,
+)
 
 pytestmark = pytest.mark.db_test
 
@@ -74,10 +80,12 @@ class TestPool:
             op1 = EmptyOperator(task_id="dummy1", pool="test_pool")
             op2 = EmptyOperator(task_id="dummy2", pool="test_pool")
             op3 = EmptyOperator(task_id="dummy3", pool="test_pool")
-        dag_maker.create_dagrun()
-        ti1 = TI(task=op1, execution_date=DEFAULT_DATE)
-        ti2 = TI(task=op2, execution_date=DEFAULT_DATE)
-        ti3 = TI(task=op3, execution_date=DEFAULT_DATE)
+
+        dr = dag_maker.create_dagrun()
+
+        ti1 = dr.get_task_instance(task_id=op1.task_id)
+        ti2 = dr.get_task_instance(task_id=op2.task_id)
+        ti3 = dr.get_task_instance(task_id=op3.task_id)
         ti1.state = State.RUNNING
         ti2.state = State.QUEUED
         ti3.state = State.DEFERRED
@@ -90,17 +98,18 @@ class TestPool:
         session.commit()
         session.close()
 
-        assert 3 == pool.open_slots()
-        assert 1 == pool.running_slots()
-        assert 1 == pool.queued_slots()
-        assert 2 == pool.occupied_slots()
-        assert 1 == pool.deferred_slots()
-        assert {
+        assert pool.open_slots() == 3
+        assert pool.running_slots() == 1
+        assert pool.queued_slots() == 1
+        assert pool.occupied_slots() == 2
+        assert pool.deferred_slots() == 1
+        assert pool.slots_stats() == {
             "default_pool": {
                 "open": 128,
                 "queued": 0,
                 "total": 128,
                 "running": 0,
+                "scheduled": 0,
                 "deferred": 0,
             },
             "test_pool": {
@@ -108,9 +117,10 @@ class TestPool:
                 "queued": 1,
                 "running": 1,
                 "deferred": 1,
+                "scheduled": 0,
                 "total": 5,
             },
-        } == pool.slots_stats()
+        }
 
     def test_open_slots_including_deferred(self, dag_maker):
         pool = Pool(pool="test_pool", slots=5, include_deferred=True)
@@ -120,9 +130,11 @@ class TestPool:
         ):
             op1 = EmptyOperator(task_id="dummy1", pool="test_pool")
             op2 = EmptyOperator(task_id="dummy2", pool="test_pool")
-        dag_maker.create_dagrun()
-        ti1 = TI(task=op1, execution_date=DEFAULT_DATE)
-        ti2 = TI(task=op2, execution_date=DEFAULT_DATE)
+
+        dr = dag_maker.create_dagrun()
+
+        ti1 = dr.get_task_instance(task_id=op1.task_id)
+        ti2 = dr.get_task_instance(task_id=op2.task_id)
         ti1.state = State.RUNNING
         ti2.state = State.DEFERRED
 
@@ -133,17 +145,18 @@ class TestPool:
         session.commit()
         session.close()
 
-        assert 3 == pool.open_slots()
-        assert 1 == pool.running_slots()
-        assert 0 == pool.queued_slots()
-        assert 1 == pool.deferred_slots()
-        assert 2 == pool.occupied_slots()
-        assert {
+        assert pool.open_slots() == 3
+        assert pool.running_slots() == 1
+        assert pool.queued_slots() == 0
+        assert pool.deferred_slots() == 1
+        assert pool.occupied_slots() == 2
+        assert pool.slots_stats() == {
             "default_pool": {
                 "open": 128,
                 "queued": 0,
                 "total": 128,
                 "running": 0,
+                "scheduled": 0,
                 "deferred": 0,
             },
             "test_pool": {
@@ -151,9 +164,10 @@ class TestPool:
                 "queued": 0,
                 "running": 1,
                 "deferred": 1,
+                "scheduled": 0,
                 "total": 5,
             },
-        } == pool.slots_stats()
+        }
 
     def test_infinite_slots(self, dag_maker):
         pool = Pool(pool="test_pool", slots=-1, include_deferred=False)
@@ -162,9 +176,13 @@ class TestPool:
         ):
             op1 = EmptyOperator(task_id="dummy1", pool="test_pool")
             op2 = EmptyOperator(task_id="dummy2", pool="test_pool")
-        dag_maker.create_dagrun()
-        ti1 = TI(task=op1, execution_date=DEFAULT_DATE)
-        ti2 = TI(task=op2, execution_date=DEFAULT_DATE)
+
+        dr = dag_maker.create_dagrun()
+
+        ti1 = TI(task=op1, run_id=dr.run_id)
+        ti1.refresh_from_db()
+        ti2 = TI(task=op2, run_id=dr.run_id)
+        ti2.refresh_from_db()
         ti1.state = State.RUNNING
         ti2.state = State.QUEUED
 
@@ -176,15 +194,16 @@ class TestPool:
         session.close()
 
         assert float("inf") == pool.open_slots()
-        assert 1 == pool.running_slots()
-        assert 1 == pool.queued_slots()
-        assert 2 == pool.occupied_slots()
-        assert {
+        assert pool.running_slots() == 1
+        assert pool.queued_slots() == 1
+        assert pool.occupied_slots() == 2
+        assert pool.slots_stats() == {
             "default_pool": {
                 "open": 128,
                 "queued": 0,
                 "total": 128,
                 "running": 0,
+                "scheduled": 0,
                 "deferred": 0,
             },
             "test_pool": {
@@ -192,41 +211,52 @@ class TestPool:
                 "queued": 1,
                 "running": 1,
                 "total": float("inf"),
+                "scheduled": 0,
                 "deferred": 0,
             },
-        } == pool.slots_stats()
+        }
 
     def test_default_pool_open_slots(self, dag_maker):
         set_default_pool_slots(5)
-        assert 5 == Pool.get_default_pool().open_slots()
+        assert Pool.get_default_pool().open_slots() == 5
 
         with dag_maker(
             dag_id="test_default_pool_open_slots",
         ):
             op1 = EmptyOperator(task_id="dummy1")
             op2 = EmptyOperator(task_id="dummy2", pool_slots=2)
-        dag_maker.create_dagrun()
-        ti1 = TI(task=op1, execution_date=DEFAULT_DATE)
-        ti2 = TI(task=op2, execution_date=DEFAULT_DATE)
+            op3 = EmptyOperator(task_id="dummy3")
+
+        dr = dag_maker.create_dagrun()
+
+        ti1 = TI(task=op1, run_id=dr.run_id)
+        ti2 = TI(task=op2, run_id=dr.run_id)
+        ti3 = TI(task=op3, run_id=dr.run_id)
+        ti1.refresh_from_db()
         ti1.state = State.RUNNING
+        ti2.refresh_from_db()
         ti2.state = State.QUEUED
+        ti3.refresh_from_db()
+        ti3.state = State.SCHEDULED
 
         session = settings.Session()
         session.merge(ti1)
         session.merge(ti2)
+        session.merge(ti3)
         session.commit()
         session.close()
 
-        assert 2 == Pool.get_default_pool().open_slots()
-        assert {
+        assert Pool.get_default_pool().open_slots() == 2
+        assert Pool.slots_stats() == {
             "default_pool": {
                 "open": 2,
                 "queued": 2,
                 "total": 5,
                 "running": 1,
+                "scheduled": 1,
                 "deferred": 0,
             }
-        } == Pool.slots_stats()
+        }
 
     def test_get_pool(self):
         self.add_pools()
