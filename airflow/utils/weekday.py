@@ -15,10 +15,11 @@
 # specific language governing permissions and limitations
 # under the License.
 """Get the ISO standard day number of the week from a given day string."""
+
 from __future__ import annotations
 
 import enum
-from typing import Iterable
+from collections.abc import Iterable
 
 
 @enum.unique

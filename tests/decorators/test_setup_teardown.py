@@ -22,7 +22,7 @@ import pytest
 from airflow.decorators import setup, task, task_group, teardown
 from airflow.decorators.setup_teardown import context_wrapper
 from airflow.exceptions import AirflowException
-from airflow.operators.bash import BashOperator
+from airflow.providers.standard.operators.bash import BashOperator
 
 pytestmark = pytest.mark.db_test
 
@@ -126,7 +126,7 @@ class TestSetupTearDownTask:
 
     def test_setup_taskgroup_decorator(self, dag_maker):
         with dag_maker():
-            with pytest.raises(
+            with pytest.raises(  # noqa: PT012, check decorators required more than one line
                 expected_exception=AirflowException,
                 match="Task groups cannot be marked as setup or teardown.",
             ):
@@ -144,7 +144,7 @@ class TestSetupTearDownTask:
 
     def test_teardown_taskgroup_decorator(self, dag_maker):
         with dag_maker():
-            with pytest.raises(
+            with pytest.raises(  # noqa: PT012, check decorators required more than one line
                 expected_exception=AirflowException,
                 match="Task groups cannot be marked as setup or teardown.",
             ):
@@ -989,7 +989,9 @@ class TestSetupTearDownTask:
         def teardowntask():
             print("teardown")
 
-        with pytest.raises(ValueError, match="All tasks in the list must be either setup or teardown tasks"):
+        with pytest.raises(  # noqa: PT012, check decorators required more than one line
+            ValueError, match="All tasks in the list must be either setup or teardown tasks"
+        ):
             with dag_maker():
                 with setuptask() << context_wrapper([teardowntask(), setuptask2()]):
                     mytask()

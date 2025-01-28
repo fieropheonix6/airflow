@@ -20,11 +20,11 @@ import pytest
 
 from airflow.api_connexion.exceptions import EXCEPTIONS_LINK_MAP
 from airflow.models import Log
-from airflow.security import permissions
 from airflow.utils import timezone
-from tests.test_utils.api_connexion_utils import assert_401, create_user, delete_user
-from tests.test_utils.config import conf_vars
-from tests.test_utils.db import clear_db_logs
+
+from tests_common.test_utils.api_connexion_utils import assert_401, create_user, delete_user
+from tests_common.test_utils.config import conf_vars
+from tests_common.test_utils.db import clear_db_logs
 
 pytestmark = pytest.mark.db_test
 
@@ -33,32 +33,16 @@ pytestmark = pytest.mark.db_test
 def configured_app(minimal_app_for_api):
     app = minimal_app_for_api
     create_user(
-        app,  # type:ignore
+        app,
         username="test",
-        role_name="Test",
-        permissions=[(permissions.ACTION_CAN_READ, permissions.RESOURCE_AUDIT_LOG)],  # type: ignore
+        role_name="admin",
     )
-    create_user(
-        app,  # type:ignore
-        username="test_granular",
-        role_name="TestGranular",
-        permissions=[(permissions.ACTION_CAN_READ, permissions.RESOURCE_AUDIT_LOG)],  # type: ignore
-    )
-    app.appbuilder.sm.sync_perm_for_dag(  # type: ignore
-        "TEST_DAG_ID_1",
-        access_control={"TestGranular": [permissions.ACTION_CAN_READ]},
-    )
-    app.appbuilder.sm.sync_perm_for_dag(  # type: ignore
-        "TEST_DAG_ID_2",
-        access_control={"TestGranular": [permissions.ACTION_CAN_READ]},
-    )
-    create_user(app, username="test_no_permissions", role_name="TestNoPermissions")  # type: ignore
+    create_user(app, username="test_no_permissions", role_name=None)
 
     yield app
 
-    delete_user(app, username="test")  # type: ignore
-    delete_user(app, username="test_granular")  # type: ignore
-    delete_user(app, username="test_no_permissions")  # type: ignore
+    delete_user(app, username="test")
+    delete_user(app, username="test_no_permissions")
 
 
 @pytest.fixture
@@ -67,7 +51,8 @@ def task_instance(session, create_task_instance, request):
         session=session,
         dag_id="TEST_DAG_ID",
         task_id="TEST_TASK_ID",
-        execution_date=request.instance.default_time,
+        run_id="TEST_RUN_ID",
+        logical_date=request.instance.default_time,
     )
 
 
@@ -116,12 +101,17 @@ class TestGetEventLog(TestEventLogEndpoint):
             f"/api/v1/eventLogs/{event_log_id}", environ_overrides={"REMOTE_USER": "test"}
         )
         assert response.status_code == 200
+        data = response.json
+        data["try_number"]
         assert response.json == {
             "event_log_id": event_log_id,
             "event": "TEST_EVENT",
             "dag_id": "TEST_DAG_ID",
             "task_id": "TEST_TASK_ID",
-            "execution_date": self.default_time.isoformat(),
+            "run_id": "TEST_RUN_ID",
+            "map_index": -1,
+            "try_number": 0,
+            "logical_date": self.default_time.isoformat(),
             "owner": "airflow",
             "when": self.default_time.isoformat(),
             "extra": None,
@@ -130,12 +120,12 @@ class TestGetEventLog(TestEventLogEndpoint):
     def test_should_respond_404(self):
         response = self.client.get("/api/v1/eventLogs/1", environ_overrides={"REMOTE_USER": "test"})
         assert response.status_code == 404
-        assert {
+        assert response.json == {
             "detail": None,
             "status": 404,
             "title": "Event Log not found",
             "type": EXCEPTIONS_LINK_MAP[404],
-        } == response.json
+        }
 
     def test_should_raises_401_unauthenticated(self, log_model):
         event_log_id = log_model.id
@@ -169,7 +159,10 @@ class TestGetEventLogs(TestEventLogEndpoint):
                     "event": "TEST_EVENT_1",
                     "dag_id": "TEST_DAG_ID",
                     "task_id": "TEST_TASK_ID",
-                    "execution_date": self.default_time.isoformat(),
+                    "run_id": "TEST_RUN_ID",
+                    "map_index": -1,
+                    "try_number": 0,
+                    "logical_date": self.default_time.isoformat(),
                     "owner": "airflow",
                     "when": self.default_time.isoformat(),
                     "extra": None,
@@ -179,7 +172,10 @@ class TestGetEventLogs(TestEventLogEndpoint):
                     "event": "TEST_EVENT_2",
                     "dag_id": "TEST_DAG_ID",
                     "task_id": "TEST_TASK_ID",
-                    "execution_date": self.default_time.isoformat(),
+                    "run_id": "TEST_RUN_ID",
+                    "map_index": -1,
+                    "try_number": 0,
+                    "logical_date": self.default_time.isoformat(),
                     "owner": "airflow",
                     "when": self.default_time_2.isoformat(),
                     "extra": None,
@@ -189,7 +185,10 @@ class TestGetEventLogs(TestEventLogEndpoint):
                     "event": "cli_scheduler",
                     "dag_id": None,
                     "task_id": None,
-                    "execution_date": None,
+                    "run_id": None,
+                    "map_index": None,
+                    "try_number": None,
+                    "logical_date": None,
                     "owner": "root",
                     "when": self.default_time_2.isoformat(),
                     "extra": '{"host_name": "e24b454f002a"}',
@@ -216,7 +215,10 @@ class TestGetEventLogs(TestEventLogEndpoint):
                     "event": "TEST_EVENT_2",
                     "dag_id": "TEST_DAG_ID",
                     "task_id": "TEST_TASK_ID",
-                    "execution_date": self.default_time.isoformat(),
+                    "run_id": "TEST_RUN_ID",
+                    "map_index": -1,
+                    "try_number": 0,
+                    "logical_date": self.default_time.isoformat(),
                     "owner": "zsh",  # Order by name, sort order is descending(-)
                     "when": self.default_time_2.isoformat(),
                     "extra": None,
@@ -226,7 +228,10 @@ class TestGetEventLogs(TestEventLogEndpoint):
                     "event": "cli_scheduler",
                     "dag_id": None,
                     "task_id": None,
-                    "execution_date": None,
+                    "run_id": None,
+                    "map_index": None,
+                    "try_number": None,
+                    "logical_date": None,
                     "owner": "root",
                     "when": self.default_time_2.isoformat(),
                     "extra": '{"host_name": "e24b454f002a"}',
@@ -236,7 +241,10 @@ class TestGetEventLogs(TestEventLogEndpoint):
                     "event": "TEST_EVENT_1",
                     "dag_id": "TEST_DAG_ID",
                     "task_id": "TEST_TASK_ID",
-                    "execution_date": self.default_time.isoformat(),
+                    "run_id": "TEST_RUN_ID",
+                    "map_index": -1,
+                    "try_number": 0,
+                    "logical_date": self.default_time.isoformat(),
                     "owner": "airflow",
                     "when": self.default_time.isoformat(),
                     "extra": None,
@@ -250,70 +258,43 @@ class TestGetEventLogs(TestEventLogEndpoint):
 
         assert_401(response)
 
-    def test_should_filter_eventlogs_by_allowed_attributes(self, create_log_model, session):
-        eventlog1 = create_log_model(
-            event="TEST_EVENT_1",
-            dag_id="TEST_DAG_ID_1",
-            task_id="TEST_TASK_ID_1",
-            owner="TEST_OWNER_1",
-            when=self.default_time,
-        )
-        eventlog2 = create_log_model(
-            event="TEST_EVENT_2",
-            dag_id="TEST_DAG_ID_2",
-            task_id="TEST_TASK_ID_2",
-            owner="TEST_OWNER_2",
-            when=self.default_time_2,
-        )
-        session.add_all([eventlog1, eventlog2])
-        session.commit()
-        for attr in ["dag_id", "task_id", "owner", "event"]:
-            attr_value = f"TEST_{attr}_1".upper()
-            response = self.client.get(
-                f"/api/v1/eventLogs?{attr}={attr_value}", environ_overrides={"REMOTE_USER": "test_granular"}
-            )
-            assert response.status_code == 200
-            assert {eventlog[attr] for eventlog in response.json["event_logs"]} == {attr_value}
-
     def test_should_filter_eventlogs_by_when(self, create_log_model, session):
         eventlog1 = create_log_model(event="TEST_EVENT_1", when=self.default_time)
         eventlog2 = create_log_model(event="TEST_EVENT_2", when=self.default_time_2)
         session.add_all([eventlog1, eventlog2])
         session.commit()
-        for when_attr, expected_eventlogs in {
-            "before": {"TEST_EVENT_1"},
-            "after": {"TEST_EVENT_2"},
+        for when_attr, expected_eventlog_event in {
+            "before": "TEST_EVENT_1",
+            "after": "TEST_EVENT_2",
         }.items():
             response = self.client.get(
                 f"/api/v1/eventLogs?{when_attr}=2020-06-10T20%3A00%3A01%2B00%3A00",  # self.default_time + 1s
                 environ_overrides={"REMOTE_USER": "test"},
             )
             assert response.status_code == 200
+            assert response.json["total_entries"] == 1
+            assert len(response.json["event_logs"]) == 1
+            assert response.json["event_logs"][0]["event"] == expected_eventlog_event
+
+    def test_should_filter_eventlogs_by_run_id(self, create_log_model, session):
+        eventlog1 = create_log_model(event="TEST_EVENT_1", when=self.default_time, run_id="run_1")
+        eventlog2 = create_log_model(event="TEST_EVENT_2", when=self.default_time, run_id="run_2")
+        eventlog3 = create_log_model(event="TEST_EVENT_3", when=self.default_time, run_id="run_2")
+        session.add_all([eventlog1, eventlog2, eventlog3])
+        session.commit()
+        for run_id, expected_eventlogs in {
+            "run_1": {"TEST_EVENT_1"},
+            "run_2": {"TEST_EVENT_2", "TEST_EVENT_3"},
+        }.items():
+            response = self.client.get(
+                f"/api/v1/eventLogs?run_id={run_id}",
+                environ_overrides={"REMOTE_USER": "test"},
+            )
+            assert response.status_code == 200
+            assert response.json["total_entries"] == len(expected_eventlogs)
+            assert len(response.json["event_logs"]) == len(expected_eventlogs)
             assert {eventlog["event"] for eventlog in response.json["event_logs"]} == expected_eventlogs
-
-    def test_should_filter_eventlogs_by_included_events(self, create_log_model):
-        for event in ["TEST_EVENT_1", "TEST_EVENT_2", "cli_scheduler"]:
-            create_log_model(event=event, when=self.default_time)
-        response = self.client.get(
-            "/api/v1/eventLogs?included_events=TEST_EVENT_1,TEST_EVENT_2",
-            environ_overrides={"REMOTE_USER": "test_granular"},
-        )
-        assert response.status_code == 200
-        response_data = response.json
-        assert len(response_data["event_logs"]) == 2
-        assert {"TEST_EVENT_1", "TEST_EVENT_2"} == {x["event"] for x in response_data["event_logs"]}
-
-    def test_should_filter_eventlogs_by_excluded_events(self, create_log_model):
-        for event in ["TEST_EVENT_1", "TEST_EVENT_2", "cli_scheduler"]:
-            create_log_model(event=event, when=self.default_time)
-        response = self.client.get(
-            "/api/v1/eventLogs?excluded_events=TEST_EVENT_1,TEST_EVENT_2",
-            environ_overrides={"REMOTE_USER": "test_granular"},
-        )
-        assert response.status_code == 200
-        response_data = response.json
-        assert len(response_data["event_logs"]) == 1
-        assert {"cli_scheduler"} == {x["event"] for x in response_data["event_logs"]}
+            assert all({eventlog["run_id"] == run_id for eventlog in response.json["event_logs"]})
 
 
 class TestGetEventLogPagination(TestEventLogEndpoint):

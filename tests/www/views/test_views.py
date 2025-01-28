@@ -20,8 +20,10 @@ from __future__ import annotations
 import os
 import re
 from unittest import mock
+from unittest.mock import patch
 
 import pytest
+from markupsafe import Markup
 
 from airflow.configuration import (
     initialize_config,
@@ -29,16 +31,19 @@ from airflow.configuration import (
     write_webserver_configuration_if_needed,
 )
 from airflow.plugins_manager import AirflowPlugin, EntryPointSource
+from airflow.utils.docs import get_doc_url_for_provider
 from airflow.utils.task_group import TaskGroup
 from airflow.www.views import (
+    ProviderView,
     get_key_paths,
     get_safe_url,
     get_task_stats_from_query,
     get_value_from_path,
 )
-from tests.test_utils.config import conf_vars
-from tests.test_utils.mock_plugins import mock_plugin_manager
-from tests.test_utils.www import check_content_in_response, check_content_not_in_response
+
+from tests_common.test_utils.config import conf_vars
+from tests_common.test_utils.mock_plugins import mock_plugin_manager
+from tests_common.test_utils.www import check_content_in_response, check_content_not_in_response
 
 pytestmark = pytest.mark.db_test
 
@@ -75,7 +80,7 @@ def test_webserver_configuration_config_file(mock_webserver_config_global, admin
         conf = write_default_airflow_configuration_if_needed()
         write_webserver_configuration_if_needed(conf)
         initialize_config()
-        assert airflow.configuration.WEBSERVER_CONFIG == config_file
+        assert config_file == airflow.configuration.WEBSERVER_CONFIG
 
     assert os.path.isfile(config_file)
 
@@ -94,6 +99,8 @@ def test_redoc_should_render_template(capture_templates, admin_client):
         "openapi_spec_url": "/api/v1/openapi.yaml",
         "rest_api_enabled": True,
         "get_docs_url": get_docs_url,
+        "excluded_events_raw": "",
+        "included_events_raw": "",
     }
 
 
@@ -130,11 +137,77 @@ def test_should_list_providers_on_page_with_details(admin_client):
     resp = admin_client.get("/provider")
     beam_href = '<a href="https://airflow.apache.org/docs/apache-airflow-providers-apache-beam/'
     beam_text = "apache-airflow-providers-apache-beam</a>"
-    beam_description = '<a href="https://beam.apache.org/">Apache Beam</a>'
+    beam_description = (
+        '<a href="https://beam.apache.org/" target="_blank" rel="noopener noreferrer">Apache Beam</a>'
+    )
     check_content_in_response(beam_href, resp)
     check_content_in_response(beam_text, resp)
     check_content_in_response(beam_description, resp)
     check_content_in_response("Providers", resp)
+
+
+@pytest.mark.parametrize(
+    "provider_description, expected",
+    [
+        (
+            "`Airbyte <https://airbyte.com/>`__",
+            Markup('<a href="https://airbyte.com/" target="_blank" rel="noopener noreferrer">Airbyte</a>'),
+        ),
+        (
+            "Amazon integration (including `Amazon Web Services (AWS) <https://aws.amazon.com/>`__).",
+            Markup(
+                'Amazon integration (including <a href="https://aws.amazon.com/" '
+                'target="_blank" rel="noopener noreferrer">Amazon Web Services (AWS)</a>).'
+            ),
+        ),
+        (
+            "`Java Database Connectivity (JDBC) <https://docs.oracle.com/javase/8/docs/technotes/guides/jdbc"
+            "/>`__",
+            Markup(
+                '<a href="https://docs.oracle.com/javase/8/docs/technotes/guides/jdbc/" '
+                'target="_blank" rel="noopener noreferrer">Java Database Connectivity (JDBC)</a>'
+            ),
+        ),
+        (
+            "`click me <javascript:prompt(document.domain)>`__",
+            Markup("`click me &lt;javascript:prompt(document.domain)&gt;`__"),
+        ),
+    ],
+)
+def test__clean_description(admin_client, provider_description, expected):
+    p = ProviderView()
+    actual = p._clean_description(provider_description)
+    assert actual == expected
+
+
+@pytest.mark.parametrize(
+    "provider_name, project_url, expected",
+    [
+        (
+            "apache-airflow-providers-airbyte",
+            "Documentation, https://airflow.apache.org/docs/apache-airflow-providers-airbyte/3.8.1/",
+            "https://airflow.apache.org/docs/apache-airflow-providers-airbyte/3.8.1/",
+        ),
+        (
+            "apache-airflow-providers-amazon",
+            "Documentation, https://airflow.apache.org/docs/apache-airflow-providers-amazon/8.25.0/",
+            "https://airflow.apache.org/docs/apache-airflow-providers-amazon/8.25.0/",
+        ),
+        (
+            "apache-airflow-providers-apache-druid",
+            "Documentation, javascript:prompt(document.domain)",
+            # the default one is returned
+            "https://airflow.apache.org/docs/apache-airflow-providers-apache-druid/1.0.0/",
+        ),
+    ],
+)
+@patch("airflow.utils.docs.get_project_url_from_metadata")
+def test_get_doc_url_for_provider(
+    mock_get_project_url_from_metadata, admin_client, provider_name, project_url, expected
+):
+    mock_get_project_url_from_metadata.return_value = [project_url]
+    actual = get_doc_url_for_provider(provider_name, "1.0.0")
+    assert actual == expected
 
 
 def test_endpoint_should_not_be_unauthenticated(app):
@@ -147,11 +220,11 @@ def test_endpoint_should_not_be_unauthenticated(app):
     "url, content",
     [
         (
-            "/taskinstance/list/?_flt_0_execution_date=2018-10-09+22:44:31",
+            "/taskinstance/list/?_flt_0_logical_date=2018-10-09+22:44:31",
             "List Task Instance",
         ),
         (
-            "/taskreschedule/list/?_flt_0_execution_date=2018-10-09+22:44:31",
+            "/taskreschedule/list/?_flt_0_logical_date=2018-10-09+22:44:31",
             "List Task Reschedule",
         ),
     ],
@@ -235,14 +308,12 @@ def test_app():
     return app.create_app(testing=True)
 
 
-def test_mark_task_instance_state(test_app):
+def test_mark_task_instance_state(test_app, dag_maker):
     """
     Test that _mark_task_instance_state() does all three things:
     - Marks the given TaskInstance as SUCCESS;
     - Clears downstream TaskInstances in FAILED/UPSTREAM_FAILED state;
-    - Set DagRun to QUEUED.
     """
-    from airflow.models.dag import DAG
     from airflow.models.dagbag import DagBag
     from airflow.models.taskinstance import TaskInstance
     from airflow.operators.empty import EmptyOperator
@@ -251,11 +322,12 @@ def test_mark_task_instance_state(test_app):
     from airflow.utils.timezone import datetime
     from airflow.utils.types import DagRunType
     from airflow.www.views import Airflow
-    from tests.test_utils.db import clear_db_runs
+
+    from tests_common.test_utils.db import clear_db_runs
 
     clear_db_runs()
     start_date = datetime(2020, 1, 1)
-    with DAG("test_mark_task_instance_state", start_date=start_date) as dag:
+    with dag_maker("test_mark_task_instance_state", start_date=start_date, schedule="0 0 * * *") as dag:
         task_1 = EmptyOperator(task_id="task_1")
         task_2 = EmptyOperator(task_id="task_2")
         task_3 = EmptyOperator(task_id="task_3")
@@ -264,13 +336,7 @@ def test_mark_task_instance_state(test_app):
 
         task_1 >> [task_2, task_3, task_4, task_5]
 
-    dagrun = dag.create_dagrun(
-        start_date=start_date,
-        execution_date=start_date,
-        data_interval=(start_date, start_date),
-        state=State.FAILED,
-        run_type=DagRunType.SCHEDULED,
-    )
+    dagrun = dag_maker.create_dagrun(state=State.FAILED, run_type=DagRunType.SCHEDULED)
 
     def get_task_instance(session, task):
         return (
@@ -278,7 +344,7 @@ def test_mark_task_instance_state(test_app):
             .filter(
                 TaskInstance.dag_id == dag.dag_id,
                 TaskInstance.task_id == task.task_id,
-                TaskInstance.execution_date == start_date,
+                TaskInstance.logical_date == start_date,
             )
             .one()
         )
@@ -293,7 +359,7 @@ def test_mark_task_instance_state(test_app):
         session.commit()
 
     test_app.dag_bag = DagBag(dag_folder="/dev/null", include_examples=False)
-    test_app.dag_bag.bag_dag(dag=dag, root_dag=dag)
+    test_app.dag_bag.bag_dag(dag=dag)
 
     with test_app.test_request_context():
         view = Airflow()
@@ -326,14 +392,13 @@ def test_mark_task_instance_state(test_app):
         assert dagrun.get_state() == State.QUEUED
 
 
-def test_mark_task_group_state(test_app):
+def test_mark_task_group_state(test_app, dag_maker):
     """
     Test that _mark_task_group_state() does all three things:
     - Marks the given TaskGroup as SUCCESS;
     - Clears downstream TaskInstances in FAILED/UPSTREAM_FAILED state;
     - Set DagRun to QUEUED.
     """
-    from airflow.models.dag import DAG
     from airflow.models.dagbag import DagBag
     from airflow.models.taskinstance import TaskInstance
     from airflow.operators.empty import EmptyOperator
@@ -342,11 +407,12 @@ def test_mark_task_group_state(test_app):
     from airflow.utils.timezone import datetime
     from airflow.utils.types import DagRunType
     from airflow.www.views import Airflow
-    from tests.test_utils.db import clear_db_runs
+
+    from tests_common.test_utils.db import clear_db_runs
 
     clear_db_runs()
     start_date = datetime(2020, 1, 1)
-    with DAG("test_mark_task_group_state", start_date=start_date) as dag:
+    with dag_maker("test_mark_task_group_state", start_date=start_date, schedule="0 0 * * *") as dag:
         start = EmptyOperator(task_id="start")
 
         with TaskGroup("section_1", tooltip="Tasks for section_1") as section_1:
@@ -364,13 +430,7 @@ def test_mark_task_group_state(test_app):
 
         start >> section_1 >> [task_4, task_5, task_6, task_7, task_8]
 
-    dagrun = dag.create_dagrun(
-        start_date=start_date,
-        execution_date=start_date,
-        data_interval=(start_date, start_date),
-        state=State.FAILED,
-        run_type=DagRunType.SCHEDULED,
-    )
+    dagrun = dag_maker.create_dagrun(state=State.FAILED, run_type=DagRunType.SCHEDULED)
 
     def get_task_instance(session, task):
         return (
@@ -378,7 +438,7 @@ def test_mark_task_group_state(test_app):
             .filter(
                 TaskInstance.dag_id == dag.dag_id,
                 TaskInstance.task_id == task.task_id,
-                TaskInstance.execution_date == start_date,
+                TaskInstance.logical_date == start_date,
             )
             .one()
         )
@@ -395,7 +455,7 @@ def test_mark_task_group_state(test_app):
         session.commit()
 
     test_app.dag_bag = DagBag(dag_folder="/dev/null", include_examples=False)
-    test_app.dag_bag.bag_dag(dag=dag, root_dag=dag)
+    test_app.dag_bag.bag_dag(dag=dag)
 
     with test_app.test_request_context():
         view = Airflow()
@@ -488,43 +548,31 @@ INVALID_DATETIME_RESPONSE = re.compile(r"Invalid datetime: &#x?\d+;invalid&#x?\d
     "url, content",
     [
         (
-            "/rendered-templates?execution_date=invalid",
+            "/rendered-templates?logical_date=invalid",
             INVALID_DATETIME_RESPONSE,
         ),
         (
-            "/log?dag_id=tutorial&execution_date=invalid",
+            "/log?dag_id=tutorial&logical_date=invalid",
             INVALID_DATETIME_RESPONSE,
         ),
         (
-            "/redirect_to_external_log?execution_date=invalid",
+            "/redirect_to_external_log?logical_date=invalid",
             INVALID_DATETIME_RESPONSE,
         ),
         (
-            "/task?execution_date=invalid",
+            "/task?logical_date=invalid",
             INVALID_DATETIME_RESPONSE,
         ),
         (
-            "dags/example_bash_operator/graph?execution_date=invalid",
+            "dags/example_bash_operator/graph?logical_date=invalid",
             INVALID_DATETIME_RESPONSE,
         ),
         (
-            "dags/example_bash_operator/duration?base_date=invalid",
+            "dags/example_bash_operator/gantt?logical_date=invalid",
             INVALID_DATETIME_RESPONSE,
         ),
         (
-            "dags/example_bash_operator/tries?base_date=invalid",
-            INVALID_DATETIME_RESPONSE,
-        ),
-        (
-            "dags/example_bash_operator/landing-times?base_date=invalid",
-            INVALID_DATETIME_RESPONSE,
-        ),
-        (
-            "dags/example_bash_operator/gantt?execution_date=invalid",
-            INVALID_DATETIME_RESPONSE,
-        ),
-        (
-            "extra_links?execution_date=invalid",
+            "extra_links?logical_date=invalid",
             INVALID_DATETIME_RESPONSE,
         ),
     ],

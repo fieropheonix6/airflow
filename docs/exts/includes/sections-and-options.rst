@@ -60,20 +60,35 @@
         {% endif %}
 
     :Type: {{ option["type"] }}
-    :Default: ``{{ "''" if option["default"] == "" else option["default"] }}``
+    :Default:
+          {% set default = option["default"] %}
+          {% if default and "\n" in default %}
+      .. code-block::
+
+        {{ default }}
+          {% else %}
+        ``{{ "''" if default == "" else default  }}``
+          {% endif %}
         {% if option.get("sensitive") %}
     :Environment Variables:
-      ``AIRFLOW__{{ section_name | upper }}__{{ option_name | upper }}``
+      ``AIRFLOW__{{ section_name | replace(".", "_") | upper }}__{{ option_name | upper }}``
 
-      ``AIRFLOW__{{ section_name | upper }}__{{ option_name | upper }}_CMD``
+      ``AIRFLOW__{{ section_name | replace(".", "_") | upper }}__{{ option_name | upper }}_CMD``
 
-      ``AIRFLOW__{{ section_name | upper }}__{{ option_name | upper }}_SECRET``
+      ``AIRFLOW__{{ section_name | replace(".", "_") | upper }}__{{ option_name | upper }}_SECRET``
         {% else %}
-    :Environment Variable: ``AIRFLOW__{{ section_name | upper }}__{{ option_name | upper }}``
+    :Environment Variable: ``AIRFLOW__{{ section_name | replace(".", "_") | upper }}__{{ option_name | upper }}``
         {% endif %}
-        {% if option["example"] %}
+        {% set example = option["example"] %}
+        {% if example %}
     :Example:
-      ``{{ option["example"] }}``
+          {% if "\n" in example %}
+      .. code-block::
+
+        {{ example }}
+          {% else %}
+        ``{{ example }}``
+          {% endif %}
         {% endif %}
     {% endfor %}
 

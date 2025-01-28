@@ -17,7 +17,8 @@
 # under the License.
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Iterator, NamedTuple
+from collections.abc import Iterator
+from typing import TYPE_CHECKING, Any, NamedTuple
 
 from airflow.ti_deps.dep_context import DepContext
 from airflow.utils.session import provide_session
@@ -59,7 +60,8 @@ class BaseTIDep:
 
     @property
     def name(self) -> str:
-        """The human-readable name for the dependency.
+        """
+        The human-readable name for the dependency.
 
         Use the class name as the default if ``NAME`` is not provided.
         """

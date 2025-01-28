@@ -19,16 +19,16 @@ from __future__ import annotations
 
 from sqlalchemy import Column, Integer, String, Text
 
-from airflow.models.base import Base
+from airflow.models.base import Base, StringID
 from airflow.utils.sqlalchemy import UtcDateTime
 
 
-class ImportError(Base):
+class ParseImportError(Base):
     """Stores all Import Errors which are recorded when parsing DAGs and displayed on the Webserver."""
 
     __tablename__ = "import_error"
     id = Column(Integer, primary_key=True)
     timestamp = Column(UtcDateTime)
     filename = Column(String(1024))
+    bundle_name = Column(StringID())
     stacktrace = Column(Text)
-    processor_subdir = Column(String(2000), nullable=True)

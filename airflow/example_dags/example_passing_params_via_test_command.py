@@ -16,6 +16,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Example DAG demonstrating the usage of the params arguments in templated arguments."""
+
 from __future__ import annotations
 
 import datetime
@@ -26,7 +27,7 @@ import pendulum
 
 from airflow.decorators import task
 from airflow.models.dag import DAG
-from airflow.operators.bash import BashOperator
+from airflow.providers.standard.operators.bash import BashOperator
 
 
 @task(task_id="run_this")

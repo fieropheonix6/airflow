@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Platform and system specific function."""
+
 from __future__ import annotations
 
 import getpass
@@ -23,8 +24,7 @@ import os
 import pkgutil
 import platform
 import sys
-
-from airflow.compat.functools import cache
+from functools import cache
 
 IS_WINDOWS = platform.system() == "Windows"
 

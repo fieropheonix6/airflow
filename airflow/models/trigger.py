@@ -17,28 +17,51 @@
 from __future__ import annotations
 
 import datetime
+from collections.abc import Iterable
+from enum import Enum
 from traceback import format_exception
-from typing import TYPE_CHECKING, Any, Iterable
+from typing import TYPE_CHECKING, Any
 
-from sqlalchemy import Column, Integer, String, delete, func, or_, select, update
-from sqlalchemy.orm import joinedload, relationship
+from sqlalchemy import Column, Integer, String, Text, delete, func, or_, select, update
+from sqlalchemy.orm import relationship, selectinload
 from sqlalchemy.sql.functions import coalesce
 
-from airflow.api_internal.internal_api_call import internal_api_call
+from airflow.assets.manager import AssetManager
+from airflow.models.asset import asset_trigger_association_table
 from airflow.models.base import Base
 from airflow.models.taskinstance import TaskInstance
 from airflow.utils import timezone
 from airflow.utils.retries import run_with_db_retries
 from airflow.utils.session import NEW_SESSION, provide_session
-from airflow.utils.sqlalchemy import ExtendedJSON, UtcDateTime, with_row_locks
+from airflow.utils.sqlalchemy import UtcDateTime, with_row_locks
 from airflow.utils.state import TaskInstanceState
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
+    from sqlalchemy.sql import Select
 
     from airflow.triggers.base import BaseTrigger
 
-ENCRYPTED_KWARGS_PREFIX = "encrypted__"
+TRIGGER_FAIL_REPR = "__fail__"
+"""String value to represent trigger failure.
+
+Internal use only.
+
+:meta private:
+"""
+
+
+class TriggerFailureReason(str, Enum):
+    """
+    Reasons for trigger failures.
+
+    Internal use only.
+
+    :meta private:
+    """
+
+    TRIGGER_TIMEOUT = "Trigger timeout"
+    TRIGGER_FAILURE = "Trigger failure"
 
 
 class Trigger(Base):
@@ -64,7 +87,7 @@ class Trigger(Base):
 
     id = Column(Integer, primary_key=True)
     classpath = Column(String(1000), nullable=False)
-    kwargs = Column(ExtendedJSON, nullable=False)
+    encrypted_kwargs = Column("kwargs", Text, nullable=False)
     created_date = Column(UtcDateTime, nullable=False)
     triggerer_id = Column(Integer, nullable=True)
 
@@ -75,7 +98,9 @@ class Trigger(Base):
         uselist=False,
     )
 
-    task_instance = relationship("TaskInstance", back_populates="trigger", lazy="joined", uselist=False)
+    task_instance = relationship("TaskInstance", back_populates="trigger", lazy="selectin", uselist=False)
+
+    assets = relationship("AssetModel", secondary=asset_trigger_association_table, back_populates="triggers")
 
     def __init__(
         self,
@@ -85,50 +110,92 @@ class Trigger(Base):
     ) -> None:
         super().__init__()
         self.classpath = classpath
-        self.kwargs = kwargs
+        self.encrypted_kwargs = self.encrypt_kwargs(kwargs)
         self.created_date = created_date or timezone.utcnow()
 
-    @classmethod
-    @internal_api_call
-    def from_object(cls, trigger: BaseTrigger) -> Trigger:
-        """Alternative constructor that creates a trigger row based directly off of a Trigger object."""
+    @property
+    def kwargs(self) -> dict[str, Any]:
+        """Return the decrypted kwargs of the trigger."""
+        return self._decrypt_kwargs(self.encrypted_kwargs)
+
+    @kwargs.setter
+    def kwargs(self, kwargs: dict[str, Any]) -> None:
+        """Set the encrypted kwargs of the trigger."""
+        self.encrypted_kwargs = self.encrypt_kwargs(kwargs)
+
+    @staticmethod
+    def encrypt_kwargs(kwargs: dict[str, Any]) -> str:
+        """Encrypt the kwargs of the trigger."""
+        import json
+
+        from airflow.models.crypto import get_fernet
+        from airflow.serialization.serialized_objects import BaseSerialization
+
+        serialized_kwargs = BaseSerialization.serialize(kwargs)
+        return get_fernet().encrypt(json.dumps(serialized_kwargs).encode("utf-8")).decode("utf-8")
+
+    @staticmethod
+    def _decrypt_kwargs(encrypted_kwargs: str) -> dict[str, Any]:
+        """Decrypt the kwargs of the trigger."""
+        import json
+
+        from airflow.models.crypto import get_fernet
+        from airflow.serialization.serialized_objects import BaseSerialization
+
+        # We weren't able to encrypt the kwargs in all migration paths,
+        # so we need to handle the case where they are not encrypted.
+        # Triggers aren't long lasting, so we can skip encrypting them now.
+        if encrypted_kwargs.startswith("{"):
+            decrypted_kwargs = json.loads(encrypted_kwargs)
+        else:
+            decrypted_kwargs = json.loads(
+                get_fernet().decrypt(encrypted_kwargs.encode("utf-8")).decode("utf-8")
+            )
+
+        return BaseSerialization.deserialize(decrypted_kwargs)
+
+    def rotate_fernet_key(self):
+        """Encrypts data with a new key. See: :ref:`security/fernet`."""
         from airflow.models.crypto import get_fernet
 
-        classpath, kwargs = trigger.serialize()
-        secure_kwargs = {}
-        fernet = get_fernet()
-        for k, v in kwargs.items():
-            if k.startswith(ENCRYPTED_KWARGS_PREFIX):
-                secure_kwargs[k] = fernet.encrypt(v.encode("utf-8")).decode("utf-8")
-            else:
-                secure_kwargs[k] = v
-        return cls(classpath=classpath, kwargs=secure_kwargs)
+        self.encrypted_kwargs = get_fernet().rotate(self.encrypted_kwargs.encode("utf-8")).decode("utf-8")
 
     @classmethod
-    @internal_api_call
+    def from_object(cls, trigger: BaseTrigger) -> Trigger:
+        """Alternative constructor that creates a trigger row based directly off of a Trigger object."""
+        classpath, kwargs = trigger.serialize()
+        return cls(classpath=classpath, kwargs=kwargs)
+
+    @classmethod
     @provide_session
     def bulk_fetch(cls, ids: Iterable[int], session: Session = NEW_SESSION) -> dict[int, Trigger]:
         """Fetch all the Triggers by ID and return a dict mapping ID -> Trigger instance."""
-        query = session.scalars(
+        stmt = (
             select(cls)
             .where(cls.id.in_(ids))
             .options(
-                joinedload("task_instance"),
-                joinedload("task_instance.trigger"),
-                joinedload("task_instance.trigger.triggerer_job"),
+                selectinload(cls.task_instance)
+                .joinedload(TaskInstance.trigger)
+                .joinedload(Trigger.triggerer_job)
             )
         )
-        return {obj.id: obj for obj in query}
+        return {obj.id: obj for obj in session.scalars(stmt)}
 
     @classmethod
-    @internal_api_call
+    @provide_session
+    def fetch_trigger_ids_with_asset(cls, session: Session = NEW_SESSION) -> set[str]:
+        """Fetch all the trigger IDs associated with at least one asset."""
+        query = select(asset_trigger_association_table.columns.trigger_id)
+        return {trigger_id for trigger_id in session.scalars(query)}
+
+    @classmethod
     @provide_session
     def clean_unused(cls, session: Session = NEW_SESSION) -> None:
-        """Delete all triggers that have no tasks dependent on them.
+        """
+        Delete all triggers that have no tasks dependent on them and are not associated to an asset.
 
-        Triggers have a one-to-many relationship to task instances, so we need
-        to clean those up first. Afterwards we can drop the triggers not
-        referenced by anyone.
+        Triggers have a one-to-many relationship to task instances, so we need to clean those up first.
+        Afterward we can drop the triggers not referenced by anyone.
         """
         # Update all task instances with trigger IDs that are not DEFERRED to remove them
         for attempt in run_with_db_retries():
@@ -141,39 +208,46 @@ class Trigger(Base):
                     .values(trigger_id=None)
                 )
 
-        # Get all triggers that have no task instances depending on them...
-        ids = session.scalars(
+        # Get all triggers that have no task instances and assets depending on them and delete them
+        ids = (
             select(cls.id)
+            .where(~cls.assets.any())
             .join(TaskInstance, cls.id == TaskInstance.trigger_id, isouter=True)
             .group_by(cls.id)
             .having(func.count(TaskInstance.trigger_id) == 0)
-        ).all()
-        # ...and delete them (we can't do this in one query due to MySQL)
+        )
+        if session.bind.dialect.name == "mysql":
+            # MySQL doesn't support DELETE with JOIN, so we need to do it in two steps
+            ids = session.scalars(ids).all()
         session.execute(
             delete(Trigger).where(Trigger.id.in_(ids)).execution_options(synchronize_session=False)
         )
 
     @classmethod
-    @internal_api_call
     @provide_session
     def submit_event(cls, trigger_id, event, session: Session = NEW_SESSION) -> None:
-        """Take an event from an instance of itself, and trigger all dependent tasks to resume."""
+        """
+        Fire an event.
+
+        Resume all tasks that were in deferred state.
+        Send an event to all assets associated to the trigger.
+        """
+        # Resume deferred tasks
         for task_instance in session.scalars(
             select(TaskInstance).where(
                 TaskInstance.trigger_id == trigger_id, TaskInstance.state == TaskInstanceState.DEFERRED
             )
         ):
-            # Add the event's payload into the kwargs for the task
-            next_kwargs = task_instance.next_kwargs or {}
-            next_kwargs["event"] = event.payload
-            task_instance.next_kwargs = next_kwargs
-            # Remove ourselves as its trigger
-            task_instance.trigger_id = None
-            # Finally, mark it as scheduled so it gets re-queued
-            task_instance.state = TaskInstanceState.SCHEDULED
+            event.handle_submit(task_instance=task_instance)
+
+        # Send an event to assets
+        trigger = session.scalars(select(cls).where(cls.id == trigger_id)).one()
+        for asset in trigger.assets:
+            AssetManager.register_asset_change(
+                asset=asset.to_public(), session=session, extra={"from_trigger": True}
+            )
 
     @classmethod
-    @internal_api_call
     @provide_session
     def submit_failure(cls, trigger_id, exc=None, session: Session = NEW_SESSION) -> None:
         """
@@ -198,22 +272,23 @@ class Trigger(Base):
         ):
             # Add the error and set the next_method to the fail state
             traceback = format_exception(type(exc), exc, exc.__traceback__) if exc else None
-            task_instance.next_method = "__fail__"
-            task_instance.next_kwargs = {"error": "Trigger failure", "traceback": traceback}
+            task_instance.next_method = TRIGGER_FAIL_REPR
+            task_instance.next_kwargs = {
+                "error": TriggerFailureReason.TRIGGER_FAILURE,
+                "traceback": traceback,
+            }
             # Remove ourselves as its trigger
             task_instance.trigger_id = None
             # Finally, mark it as scheduled so it gets re-queued
             task_instance.state = TaskInstanceState.SCHEDULED
 
     @classmethod
-    @internal_api_call
     @provide_session
     def ids_for_triggerer(cls, triggerer_id, session: Session = NEW_SESSION) -> list[int]:
-        """Retrieve a list of triggerer_ids."""
+        """Retrieve a list of trigger ids."""
         return session.scalars(select(cls.id).where(cls.triggerer_id == triggerer_id)).all()
 
     @classmethod
-    @internal_api_call
     @provide_session
     def assign_unassigned(
         cls, triggerer_id, capacity, health_check_threshold, session: Session = NEW_SESSION
@@ -233,13 +308,11 @@ class Trigger(Base):
         if capacity <= 0:
             return
 
-        alive_triggerer_ids = session.scalars(
-            select(Job.id).where(
-                Job.end_date.is_(None),
-                Job.latest_heartbeat > timezone.utcnow() - datetime.timedelta(seconds=health_check_threshold),
-                Job.job_type == "TriggererJob",
-            )
-        ).all()
+        alive_triggerer_ids = select(Job.id).where(
+            Job.end_date.is_(None),
+            Job.latest_heartbeat > timezone.utcnow() - datetime.timedelta(seconds=health_check_threshold),
+            Job.job_type == "TriggererJob",
+        )
 
         # Find triggers who do NOT have an alive triggerer_id, and then assign
         # up to `capacity` of those to us.
@@ -257,7 +330,14 @@ class Trigger(Base):
         session.commit()
 
     @classmethod
-    def get_sorted_triggers(cls, capacity, alive_triggerer_ids, session):
+    def get_sorted_triggers(cls, capacity: int, alive_triggerer_ids: list[int] | Select, session: Session):
+        """
+        Get sorted triggers based on capacity and alive triggerer ids.
+
+        :param capacity: The capacity of the triggerer.
+        :param alive_triggerer_ids: The alive triggerer ids as a list or a select query.
+        :param session: The database session.
+        """
         query = with_row_locks(
             select(cls.id)
             .join(TaskInstance, cls.id == TaskInstance.trigger_id, isouter=False)
@@ -267,4 +347,15 @@ class Trigger(Base):
             session,
             skip_locked=True,
         )
-        return session.execute(query).all()
+        ti_triggers = session.execute(query).all()
+
+        query = with_row_locks(
+            select(cls.id).where(cls.assets.any()).order_by(cls.created_date).limit(capacity),
+            session,
+            skip_locked=True,
+        )
+        asset_triggers = session.execute(query).all()
+
+        # Add triggers associated to assets after triggers associated to tasks
+        # It prioritizes DAGs over event driven scheduling which is fair
+        return ti_triggers + asset_triggers

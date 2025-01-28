@@ -23,7 +23,7 @@ Customizing breeze environment
 
 Breeze can be customized in a number of ways. You can read about those ways in this document.
 
-.. contents:: :local:
+**The outline for this document in GitHub is available at top-right corner button (with 3-dots and 3 lines).**
 
 
 Customizing Breeze startup
@@ -45,7 +45,7 @@ will be evaluated at entering the environment.
 The ``files`` folder from your local sources is automatically mounted to the container under
 ``/files`` path and you can put there any files you want to make available for the Breeze container.
 
-You can also copy any .whl or .sdist packages to dist and when you pass ``--use-packages-from-dist`` flag
+You can also copy any .whl or ``sdist`` packages to dist and when you pass ``--use-packages-from-dist`` flag
 as ``wheel`` or ``sdist`` line parameter, breeze will automatically install the packages found there
 when you enter Breeze.
 
@@ -60,6 +60,40 @@ so you can change it at any place, and run
   tmux source ~/.tmux.conf
 
 inside container, to enable modified tmux configurations.
+
+Tmux tldr
+~~~~~~~~~
+
+In case you, like some Airflow core devs, are a tmux dummy, here are some tmux config entries
+that you may find helpful.
+
+.. code-block::
+
+  # if you like vi mode instead of emacs
+  set-window-option -g mode-keys vi
+
+  # will not clear the selection immediately
+  bind-key -T copy-mode-vi MouseDragEnd1Pane send-keys -X copy-selection-no-clear
+
+  # make it so ctrl+shift+arrow moves the focused pane
+  bind -T root C-S-Left select-pane -L
+  bind -T root C-S-Right select-pane -R
+  bind -T root C-S-Up select-pane -U
+  bind -T root C-S-Down select-pane -D
+
+Some helpful commands:
+
+  - ``ctrl-b + z``: zoom into selected pane
+  - ``ctrl-b + [``: enter copy mode
+
+To copy an entire pane:
+  - select the pane
+  - enter copy mode: ``ctrl-b + [``
+  - go to start: ``g``
+  - begin selection: ``space``
+  - extend selection to end: ``G``
+  - copy and clear selection: ``enter``
+
 
 Additional tools in Breeze container
 ------------------------------------
@@ -95,7 +129,7 @@ Launching Breeze integrations
 
 When Breeze starts, it can start additional integrations. Those are additional docker containers
 that are started in the same docker-compose command. Those are required by some of the tests
-as described in `<../../../contributing-docs/testing/integration-tests.rst>`_.
+as described in `<../../../contributing-docs/testing/integration_tests.rst>`_.
 
 By default Breeze starts only airflow container without any integration enabled. If you selected
 ``postgres`` or ``mysql`` backend, the container for the selected backend is also started (but only the one

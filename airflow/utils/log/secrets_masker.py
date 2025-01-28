@@ -15,25 +15,21 @@
 # specific language governing permissions and limitations
 # under the License.
 """Mask sensitive information from logs."""
+
 from __future__ import annotations
 
 import collections.abc
 import logging
 import sys
+from collections.abc import Generator, Iterable, Iterator
 from enum import Enum
-from functools import cached_property
+from functools import cache, cached_property
+from re import Pattern
 from typing import (
     TYPE_CHECKING,
     Any,
     Callable,
-    Dict,
-    Generator,
-    Iterable,
-    Iterator,
-    List,
-    Pattern,
     TextIO,
-    Tuple,
     TypeVar,
     Union,
 )
@@ -41,14 +37,13 @@ from typing import (
 import re2
 
 from airflow import settings
-from airflow.compat.functools import cache
 
 if TYPE_CHECKING:
     from kubernetes.client import V1EnvVar
 
     from airflow.typing_compat import TypeGuard
 
-Redactable = TypeVar("Redactable", str, "V1EnvVar", Dict[Any, Any], Tuple[Any, ...], List[Any])
+Redactable = TypeVar("Redactable", str, "V1EnvVar", dict[Any, Any], tuple[Any, ...], list[Any])
 Redacted = Union[Redactable, str]
 
 log = logging.getLogger(__name__)
@@ -289,7 +284,8 @@ class SecretsMasker(logging.Filter):
             return item
 
     def redact(self, item: Redactable, name: str | None = None, max_depth: int | None = None) -> Redacted:
-        """Redact an any secrets found in ``item``, if it is a string.
+        """
+        Redact an any secrets found in ``item``, if it is a string.
 
         If ``name`` is given, and it's a "sensitive" name (see
         :func:`should_hide_value_for_key`) then all string values in the item
@@ -299,7 +295,8 @@ class SecretsMasker(logging.Filter):
 
     @cached_property
     def _mask_adapter(self) -> None | Callable:
-        """Pulls the secret mask adapter from config.
+        """
+        Pulls the secret mask adapter from config.
 
         This lives in a function here to be cached and only hit the config once.
         """
@@ -309,7 +306,8 @@ class SecretsMasker(logging.Filter):
 
     @cached_property
     def _test_mode(self) -> bool:
-        """Pulls the unit test mode flag from config.
+        """
+        Pulls the unit test mode flag from config.
 
         This lives in a function here to be cached and only hit the config once.
         """
@@ -356,7 +354,8 @@ class SecretsMasker(logging.Filter):
 
 
 class RedactedIO(TextIO):
-    """IO class that redacts values going into stdout.
+    """
+    IO class that redacts values going into stdout.
 
     Expected usage::
 

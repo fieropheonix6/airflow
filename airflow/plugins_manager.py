@@ -16,6 +16,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Manages all plugins."""
+
 from __future__ import annotations
 
 import importlib
@@ -26,22 +27,30 @@ import logging
 import os
 import sys
 import types
+from collections.abc import Iterable
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Iterable
+from typing import TYPE_CHECKING, Any
 
 from airflow import settings
+from airflow.configuration import conf
+from airflow.task.priority_strategy import (
+    PriorityWeightStrategy,
+    airflow_priority_weight_strategies,
+)
 from airflow.utils.entry_points import entry_points_with_dist
 from airflow.utils.file import find_path_from_directory
 from airflow.utils.module_loading import import_string, qualname
 
 if TYPE_CHECKING:
+    from airflow.lineage.hook import HookLineageReader
+
     try:
-        import importlib_metadata
+        import importlib_metadata as metadata
     except ImportError:
-        from importlib import metadata as importlib_metadata  # type: ignore[no-redef]
+        from importlib import metadata  # type: ignore[no-redef]
+    from collections.abc import Generator
     from types import ModuleType
 
-    from airflow.hooks.base import BaseHook
     from airflow.listeners.listener import ListenerManager
     from airflow.timetables.base import Timetable
 
@@ -53,21 +62,21 @@ plugins: list[AirflowPlugin] | None = None
 loaded_plugins: set[str] = set()
 
 # Plugin components to integrate as modules
-registered_hooks: list[BaseHook] | None = None
 macros_modules: list[Any] | None = None
-executors_modules: list[Any] | None = None
 
 # Plugin components to integrate directly
 admin_views: list[Any] | None = None
 flask_blueprints: list[Any] | None = None
+fastapi_apps: list[Any] | None = None
 menu_links: list[Any] | None = None
 flask_appbuilder_views: list[Any] | None = None
 flask_appbuilder_menu_links: list[Any] | None = None
 global_operator_extra_links: list[Any] | None = None
 operator_extra_links: list[Any] | None = None
 registered_operator_link_classes: dict[str, type] | None = None
-registered_ti_dep_classes: dict[str, type] | None = None
 timetable_classes: dict[str, type[Timetable]] | None = None
+hook_lineage_reader_classes: list[type[HookLineageReader]] | None = None
+priority_weight_strategy_classes: dict[str, type[PriorityWeightStrategy]] | None = None
 """
 Mapping of class names to class of OperatorLinks registered by plugins.
 
@@ -75,20 +84,19 @@ Used by the DAG serialization code to only allow specific classes to be created
 during deserialization
 """
 PLUGINS_ATTRIBUTES_TO_DUMP = {
-    "hooks",
-    "executors",
     "macros",
     "admin_views",
     "flask_blueprints",
+    "fastapi_apps",
     "menu_links",
     "appbuilder_views",
     "appbuilder_menu_items",
     "global_operator_extra_links",
     "operator_extra_links",
     "source",
-    "ti_deps",
     "timetables",
     "listeners",
+    "priority_weight_strategies",
 }
 
 
@@ -118,7 +126,7 @@ class PluginsDirectorySource(AirflowPluginSource):
 class EntryPointSource(AirflowPluginSource):
     """Class used to define Plugins loaded from entrypoint."""
 
-    def __init__(self, entrypoint: importlib_metadata.EntryPoint, dist: importlib_metadata.Distribution):
+    def __init__(self, entrypoint: metadata.EntryPoint, dist: metadata.Distribution):
         self.dist = dist.metadata["Name"]
         self.version = dist.version
         self.entrypoint = str(entrypoint)
@@ -139,11 +147,10 @@ class AirflowPlugin:
 
     name: str | None = None
     source: AirflowPluginSource | None = None
-    hooks: list[Any] = []
-    executors: list[Any] = []
     macros: list[Any] = []
     admin_views: list[Any] = []
     flask_blueprints: list[Any] = []
+    fastapi_apps: list[Any] = []
     menu_links: list[Any] = []
     appbuilder_views: list[Any] = []
     appbuilder_menu_items: list[Any] = []
@@ -162,12 +169,17 @@ class AirflowPlugin:
     # buttons.
     operator_extra_links: list[Any] = []
 
-    ti_deps: list[Any] = []
-
     # A list of timetable classes that can be used for DAG scheduling.
     timetables: list[type[Timetable]] = []
 
+    # A list of listeners that can be used for tracking task and DAG states.
     listeners: list[ModuleType | object] = []
+
+    # A list of hook lineage reader classes that can be used for reading lineage information from a hook.
+    hook_lineage_readers: list[type[HookLineageReader]] = []
+
+    # A list of priority weight strategy classes that can be used for calculating tasks weight priority.
+    priority_weight_strategies: list[type[PriorityWeightStrategy]] = []
 
     @classmethod
     def validate(cls):
@@ -252,28 +264,38 @@ def load_plugins_from_plugin_directory():
     """Load and register Airflow Plugins from plugins directory."""
     global import_errors
     log.debug("Loading plugins from directory: %s", settings.PLUGINS_FOLDER)
+    files = find_path_from_directory(settings.PLUGINS_FOLDER, ".airflowignore")
+    plugin_search_locations: list[tuple[str, Generator[str, None, None]]] = [("", files)]
 
-    for file_path in find_path_from_directory(settings.PLUGINS_FOLDER, ".airflowignore"):
-        path = Path(file_path)
-        if not path.is_file() or path.suffix != ".py":
-            continue
-        mod_name = path.stem
+    if conf.getboolean("core", "LOAD_EXAMPLES"):
+        log.debug("Note: Loading plugins from examples as well: %s", settings.PLUGINS_FOLDER)
+        from airflow.example_dags import plugins
 
-        try:
-            loader = importlib.machinery.SourceFileLoader(mod_name, file_path)
-            spec = importlib.util.spec_from_loader(mod_name, loader)
-            mod = importlib.util.module_from_spec(spec)
-            sys.modules[spec.name] = mod
-            loader.exec_module(mod)
-            log.debug("Importing plugin module %s", file_path)
+        example_plugins_folder = next(iter(plugins.__path__))
+        example_files = find_path_from_directory(example_plugins_folder, ".airflowignore")
+        plugin_search_locations.append((plugins.__name__, example_files))
 
-            for mod_attr_value in (m for m in mod.__dict__.values() if is_valid_plugin(m)):
-                plugin_instance = mod_attr_value()
-                plugin_instance.source = PluginsDirectorySource(file_path)
-                register_plugin(plugin_instance)
-        except Exception as e:
-            log.exception("Failed to import plugin %s", file_path)
-            import_errors[file_path] = str(e)
+    for module_prefix, plugin_files in plugin_search_locations:
+        for file_path in plugin_files:
+            path = Path(file_path)
+            if not path.is_file() or path.suffix != ".py":
+                continue
+            mod_name = f"{module_prefix}.{path.stem}" if module_prefix else path.stem
+
+            try:
+                loader = importlib.machinery.SourceFileLoader(mod_name, file_path)
+                spec = importlib.util.spec_from_loader(mod_name, loader)
+                mod = importlib.util.module_from_spec(spec)
+                sys.modules[spec.name] = mod
+                loader.exec_module(mod)
+
+                for mod_attr_value in (m for m in mod.__dict__.values() if is_valid_plugin(m)):
+                    plugin_instance = mod_attr_value()
+                    plugin_instance.source = PluginsDirectorySource(file_path)
+                    register_plugin(plugin_instance)
+            except Exception as e:
+                log.exception("Failed to import plugin %s", file_path)
+                import_errors[file_path] = str(e)
 
 
 def load_providers_plugins():
@@ -316,7 +338,7 @@ def ensure_plugins_loaded():
     """
     from airflow.stats import Stats
 
-    global plugins, registered_hooks
+    global plugins
 
     if plugins is not None:
         log.debug("Plugins are already loaded. Skipping.")
@@ -329,7 +351,6 @@ def ensure_plugins_loaded():
 
     with Stats.timer() as timer:
         plugins = []
-        registered_hooks = []
 
         load_plugins_from_plugin_directory()
         load_entrypoint_plugins()
@@ -337,16 +358,11 @@ def ensure_plugins_loaded():
         if not settings.LAZY_LOAD_PROVIDERS:
             load_providers_plugins()
 
-        # We don't do anything with these for now, but we want to keep track of
-        # them so we can integrate them in to the UI's Connection screens
-        for plugin in plugins:
-            registered_hooks.extend(plugin.hooks)
-
     if plugins:
         log.debug("Loading %d plugin(s) took %.2f seconds", len(plugins), timer.duration)
 
 
-def initialize_web_ui_plugins():
+def initialize_flask_plugins():
     """Collect extension points for WEB UI."""
     global plugins
     global flask_blueprints
@@ -386,10 +402,12 @@ def initialize_web_ui_plugins():
             )
 
 
-def initialize_ti_deps_plugins():
-    """Create modules for loaded extension from custom task instance dependency rule plugins."""
-    global registered_ti_dep_classes
-    if registered_ti_dep_classes is not None:
+def initialize_fastapi_plugins():
+    """Collect extension points for the API."""
+    global plugins
+    global fastapi_apps
+
+    if fastapi_apps:
         return
 
     ensure_plugins_loaded()
@@ -397,14 +415,12 @@ def initialize_ti_deps_plugins():
     if plugins is None:
         raise AirflowPluginException("Can't load plugins.")
 
-    log.debug("Initialize custom taskinstance deps plugins")
+    log.debug("Initialize FastAPI plugin")
 
-    registered_ti_dep_classes = {}
+    fastapi_apps = []
 
     for plugin in plugins:
-        registered_ti_dep_classes.update(
-            {qualname(ti_dep.__class__): ti_dep.__class__ for ti_dep in plugin.ti_deps}
-        )
+        fastapi_apps.extend(plugin.fastapi_apps)
 
 
 def initialize_extra_operators_links_plugins():
@@ -461,12 +477,11 @@ def initialize_timetables_plugins():
     }
 
 
-def integrate_executor_plugins() -> None:
-    """Integrate executor plugins to the context."""
-    global plugins
-    global executors_modules
+def initialize_hook_lineage_readers_plugins():
+    """Collect hook lineage reader classes registered by plugins."""
+    global hook_lineage_reader_classes
 
-    if executors_modules is not None:
+    if hook_lineage_reader_classes is not None:
         return
 
     ensure_plugins_loaded()
@@ -474,18 +489,11 @@ def integrate_executor_plugins() -> None:
     if plugins is None:
         raise AirflowPluginException("Can't load plugins.")
 
-    log.debug("Integrate executor plugins")
+    log.debug("Initialize hook lineage readers plugins")
 
-    executors_modules = []
+    hook_lineage_reader_classes = []
     for plugin in plugins:
-        if plugin.name is None:
-            raise AirflowPluginException("Invalid plugin name")
-        plugin_name: str = plugin.name
-
-        executors_module = make_module("airflow.executors." + plugin_name, plugin.executors)
-        if executors_module:
-            executors_modules.append(executors_module)
-            sys.modules[executors_module.__name__] = executors_module
+        hook_lineage_reader_classes.extend(plugin.hook_lineage_readers)
 
 
 def integrate_macros_plugins() -> None:
@@ -543,9 +551,9 @@ def get_plugin_info(attrs_to_dump: Iterable[str] | None = None) -> list[dict[str
     :param attrs_to_dump: A list of plugin attributes to dump
     """
     ensure_plugins_loaded()
-    integrate_executor_plugins()
     integrate_macros_plugins()
-    initialize_web_ui_plugins()
+    initialize_flask_plugins()
+    initialize_fastapi_plugins()
     initialize_extra_operators_links_plugins()
     if not attrs_to_dump:
         attrs_to_dump = PLUGINS_ATTRIBUTES_TO_DUMP
@@ -556,7 +564,7 @@ def get_plugin_info(attrs_to_dump: Iterable[str] | None = None) -> list[dict[str
             for attr in attrs_to_dump:
                 if attr in ("global_operator_extra_links", "operator_extra_links"):
                     info[attr] = [f"<{qualname(d.__class__)} object>" for d in getattr(plugin, attr)]
-                elif attr in ("macros", "timetables", "hooks", "executors"):
+                elif attr in ("macros", "timetables", "priority_weight_strategies"):
                     info[attr] = [qualname(d) for d in getattr(plugin, attr)]
                 elif attr == "listeners":
                     # listeners may be modules or class instances
@@ -573,7 +581,37 @@ def get_plugin_info(attrs_to_dump: Iterable[str] | None = None) -> list[dict[str
                         f"<{qualname(d.__class__)}: name={d.name!r} import_name={d.import_name!r}>"
                         for d in getattr(plugin, attr)
                     ]
+                elif attr == "fastapi_apps":
+                    info[attr] = [
+                        {**d, "app": qualname(d["app"].__class__) if "app" in d else None}
+                        for d in getattr(plugin, attr)
+                    ]
                 else:
                     info[attr] = getattr(plugin, attr)
             plugins_info.append(info)
     return plugins_info
+
+
+def initialize_priority_weight_strategy_plugins():
+    """Collect priority weight strategy classes registered by plugins."""
+    global priority_weight_strategy_classes
+
+    if priority_weight_strategy_classes is not None:
+        return
+
+    ensure_plugins_loaded()
+
+    if plugins is None:
+        raise AirflowPluginException("Can't load plugins.")
+
+    log.debug("Initialize extra priority weight strategy plugins")
+
+    plugins_priority_weight_strategy_classes = {
+        qualname(priority_weight_strategy_class): priority_weight_strategy_class
+        for plugin in plugins
+        for priority_weight_strategy_class in plugin.priority_weight_strategies
+    }
+    priority_weight_strategy_classes = {
+        **airflow_priority_weight_strategies,
+        **plugins_priority_weight_strategy_classes,
+    }

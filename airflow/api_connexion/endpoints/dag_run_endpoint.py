@@ -16,8 +16,9 @@
 # under the License.
 from __future__ import annotations
 
+from collections.abc import Collection
 from http import HTTPStatus
-from typing import TYPE_CHECKING, Collection
+from typing import TYPE_CHECKING
 
 import pendulum
 from connexion import NoContent
@@ -39,6 +40,10 @@ from airflow.api_connexion.parameters import (
     format_datetime,
     format_parameters,
 )
+from airflow.api_connexion.schemas.asset_schema import (
+    AssetEventCollection,
+    asset_event_collection_schema,
+)
 from airflow.api_connexion.schemas.dag_run_schema import (
     DAGRunCollection,
     DAGRunCollectionSchema,
@@ -50,26 +55,23 @@ from airflow.api_connexion.schemas.dag_run_schema import (
     set_dagrun_note_form_schema,
     set_dagrun_state_form_schema,
 )
-from airflow.api_connexion.schemas.dataset_schema import (
-    DatasetEventCollection,
-    dataset_event_collection_schema,
-)
 from airflow.api_connexion.schemas.task_instance_schema import (
     TaskInstanceReferenceCollection,
     task_instance_reference_collection_schema,
 )
+from airflow.api_fastapi.app import get_auth_manager
 from airflow.auth.managers.models.resource_details import DagAccessEntity
+from airflow.exceptions import ParamValidationError
 from airflow.models import DagModel, DagRun
-from airflow.security import permissions
+from airflow.models.dag_version import DagVersion
 from airflow.timetables.base import DataInterval
 from airflow.utils.airflow_flask_app import get_airflow_app
+from airflow.utils.api_migration import mark_fastapi_migration_done
 from airflow.utils.db import get_query_count
-from airflow.utils.log.action_logger import action_event_from_permission
 from airflow.utils.session import NEW_SESSION, provide_session
 from airflow.utils.state import DagRunState
-from airflow.utils.types import DagRunType
+from airflow.utils.types import DagRunTriggeredByType, DagRunType
 from airflow.www.decorators import action_logging
-from airflow.www.extensions.init_auth_manager import get_auth_manager
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
@@ -77,11 +79,11 @@ if TYPE_CHECKING:
 
     from airflow.api_connexion.types import APIResponse
 
-RESOURCE_EVENT_PREFIX = "dag_run"
 
-
+@mark_fastapi_migration_done
 @security.requires_access_dag("DELETE", DagAccessEntity.RUN)
 @provide_session
+@action_logging
 def delete_dag_run(*, dag_id: str, dag_run_id: str, session: Session = NEW_SESSION) -> APIResponse:
     """Delete a DAG Run."""
     deleted_count = session.execute(
@@ -92,6 +94,7 @@ def delete_dag_run(*, dag_id: str, dag_run_id: str, session: Session = NEW_SESSI
     return NoContent, HTTPStatus.NO_CONTENT
 
 
+@mark_fastapi_migration_done
 @security.requires_access_dag("GET", DagAccessEntity.RUN)
 @provide_session
 def get_dag_run(
@@ -113,13 +116,12 @@ def get_dag_run(
         raise BadRequest("DAGRunSchema error", detail=str(e))
 
 
+@mark_fastapi_migration_done
 @security.requires_access_dag("GET", DagAccessEntity.RUN)
-@security.requires_access_dataset("GET")
+@security.requires_access_asset("GET")
 @provide_session
-def get_upstream_dataset_events(
-    *, dag_id: str, dag_run_id: str, session: Session = NEW_SESSION
-) -> APIResponse:
-    """If dag run is dataset-triggered, return the dataset events that triggered it."""
+def get_upstream_asset_events(*, dag_id: str, dag_run_id: str, session: Session = NEW_SESSION) -> APIResponse:
+    """If dag run is asset-triggered, return the asset events that triggered it."""
     dag_run: DagRun | None = session.scalar(
         select(DagRun).where(
             DagRun.dag_id == dag_id,
@@ -131,9 +133,9 @@ def get_upstream_dataset_events(
             "DAGRun not found",
             detail=f"DAGRun with DAG ID: '{dag_id}' and DagRun ID: '{dag_run_id}' not found",
         )
-    events = dag_run.consumed_dataset_events
-    return dataset_event_collection_schema.dump(
-        DatasetEventCollection(dataset_events=events, total_entries=len(events))
+    events = dag_run.consumed_asset_events
+    return asset_event_collection_schema.dump(
+        AssetEventCollection(asset_events=events, total_entries=len(events))
     )
 
 
@@ -157,11 +159,11 @@ def _fetch_dag_runs(
         query = query.where(DagRun.start_date >= start_date_gte)
     if start_date_lte:
         query = query.where(DagRun.start_date <= start_date_lte)
-    # filter execution date
+    # filter logical date
     if execution_date_gte:
-        query = query.where(DagRun.execution_date >= execution_date_gte)
+        query = query.where(DagRun.logical_date >= execution_date_gte)
     if execution_date_lte:
-        query = query.where(DagRun.execution_date <= execution_date_lte)
+        query = query.where(DagRun.logical_date <= execution_date_lte)
     # filter end date
     if end_date_gte:
         query = query.where(DagRun.end_date >= end_date_gte)
@@ -174,12 +176,12 @@ def _fetch_dag_runs(
         query = query.where(DagRun.updated_at <= updated_at_lte)
 
     total_entries = get_query_count(query, session=session)
-    to_replace = {"dag_run_id": "run_id"}
-    allowed_filter_attrs = [
+    to_replace = {"dag_run_id": "run_id", "logical_date": "logical_date"}
+    allowed_sort_attrs = [
         "id",
         "state",
         "dag_id",
-        "execution_date",
+        "logical_date",
         "dag_run_id",
         "start_date",
         "end_date",
@@ -187,10 +189,11 @@ def _fetch_dag_runs(
         "external_trigger",
         "conf",
     ]
-    query = apply_sorting(query, order_by, to_replace, allowed_filter_attrs)
+    query = apply_sorting(query, order_by, to_replace, allowed_sort_attrs)
     return session.scalars(query.offset(offset).limit(limit)).all(), total_entries
 
 
+@mark_fastapi_migration_done
 @security.requires_access_dag("GET", DagAccessEntity.RUN)
 @format_parameters(
     {
@@ -262,6 +265,7 @@ def get_dag_runs(
         raise BadRequest("DAGRunCollectionSchema error", detail=str(e))
 
 
+@mark_fastapi_migration_done
 @security.requires_access_dag("GET", DagAccessEntity.RUN)
 @provide_session
 def get_dag_runs_batch(*, session: Session = NEW_SESSION) -> APIResponse:
@@ -301,14 +305,10 @@ def get_dag_runs_batch(*, session: Session = NEW_SESSION) -> APIResponse:
     return dagrun_collection_schema.dump(DAGRunCollection(dag_runs=dag_runs, total_entries=total_entries))
 
 
+@mark_fastapi_migration_done
 @security.requires_access_dag("POST", DagAccessEntity.RUN)
+@action_logging
 @provide_session
-@action_logging(
-    event=action_event_from_permission(
-        prefix=RESOURCE_EVENT_PREFIX,
-        permission=permissions.ACTION_CAN_CREATE,
-    ),
-)
 def post_dag_run(*, dag_id: str, session: Session = NEW_SESSION) -> APIResponse:
     """Trigger a DAG."""
     dm = session.scalar(select(DagModel).where(DagModel.is_active, DagModel.dag_id == dag_id).limit(1))
@@ -324,13 +324,13 @@ def post_dag_run(*, dag_id: str, session: Session = NEW_SESSION) -> APIResponse:
     except ValidationError as err:
         raise BadRequest(detail=str(err))
 
-    logical_date = pendulum.instance(post_body["execution_date"])
+    logical_date = pendulum.instance(post_body["logical_date"])
     run_id = post_body["run_id"]
     dagrun_instance = session.scalar(
         select(DagRun)
         .where(
             DagRun.dag_id == dag_id,
-            or_(DagRun.run_id == run_id, DagRun.execution_date == logical_date),
+            or_(DagRun.run_id == run_id, DagRun.logical_date == logical_date),
         )
         .limit(1)
     )
@@ -347,16 +347,16 @@ def post_dag_run(*, dag_id: str, session: Session = NEW_SESSION) -> APIResponse:
                 )
             else:
                 data_interval = dag.timetable.infer_manual_data_interval(run_after=logical_date)
-
             dag_run = dag.create_dagrun(
-                run_type=DagRunType.MANUAL,
                 run_id=run_id,
-                execution_date=logical_date,
+                logical_date=logical_date,
                 data_interval=data_interval,
-                state=DagRunState.QUEUED,
                 conf=post_body.get("conf"),
+                run_type=DagRunType.MANUAL,
+                triggered_by=DagRunTriggeredByType.REST_API,
                 external_trigger=True,
-                dag_hash=get_airflow_app().dag_bag.dags_hash.get(dag_id),
+                dag_version=DagVersion.get_latest_version(dag.dag_id),
+                state=DagRunState.QUEUED,
                 session=session,
             )
             dag_run_note = post_body.get("note")
@@ -364,10 +364,10 @@ def post_dag_run(*, dag_id: str, session: Session = NEW_SESSION) -> APIResponse:
                 current_user_id = get_auth_manager().get_user_id()
                 dag_run.note = (dag_run_note, current_user_id)
             return dagrun_schema.dump(dag_run)
-        except ValueError as ve:
+        except (ValueError, ParamValidationError) as ve:
             raise BadRequest(detail=str(ve))
 
-    if dagrun_instance.execution_date == logical_date:
+    if dagrun_instance.logical_date == logical_date:
         raise AlreadyExists(
             detail=(
                 f"DAGRun with DAG ID: '{dag_id}' and "
@@ -378,8 +378,10 @@ def post_dag_run(*, dag_id: str, session: Session = NEW_SESSION) -> APIResponse:
     raise AlreadyExists(detail=f"DAGRun with DAG ID: '{dag_id}' and DAGRun ID: '{run_id}' already exists")
 
 
+@mark_fastapi_migration_done
 @security.requires_access_dag("PUT", DagAccessEntity.RUN)
 @provide_session
+@action_logging
 def update_dag_run_state(*, dag_id: str, dag_run_id: str, session: Session = NEW_SESSION) -> APIResponse:
     """Set a state of a dag run."""
     dag_run: DagRun | None = session.scalar(
@@ -405,7 +407,9 @@ def update_dag_run_state(*, dag_id: str, dag_run_id: str, session: Session = NEW
     return dagrun_schema.dump(dag_run)
 
 
+@mark_fastapi_migration_done
 @security.requires_access_dag("PUT", DagAccessEntity.RUN)
+@action_logging
 @provide_session
 def clear_dag_run(*, dag_id: str, dag_run_id: str, session: Session = NEW_SESSION) -> APIResponse:
     """Clear a dag run."""
@@ -430,8 +434,6 @@ def clear_dag_run(*, dag_id: str, dag_run_id: str, session: Session = NEW_SESSIO
             start_date=start_date,
             end_date=end_date,
             task_ids=None,
-            include_subdags=True,
-            include_parentdag=True,
             only_failed=False,
             dry_run=True,
         )
@@ -443,8 +445,6 @@ def clear_dag_run(*, dag_id: str, dag_run_id: str, session: Session = NEW_SESSIO
             start_date=start_date,
             end_date=end_date,
             task_ids=None,
-            include_subdags=True,
-            include_parentdag=True,
             only_failed=False,
         )
         dag_run = session.execute(select(DagRun).where(DagRun.id == dag_run.id)).scalar_one()
@@ -452,6 +452,7 @@ def clear_dag_run(*, dag_id: str, dag_run_id: str, session: Session = NEW_SESSIO
 
 
 @security.requires_access_dag("PUT", DagAccessEntity.RUN)
+@action_logging
 @provide_session
 def set_dag_run_note(*, dag_id: str, dag_run_id: str, session: Session = NEW_SESSION) -> APIResponse:
     """Set the note for a dag run."""

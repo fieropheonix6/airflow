@@ -22,10 +22,11 @@ from datetime import timedelta
 import pendulum
 import pytest
 
-from airflow.decorators import dag, task_group
+from airflow.decorators import dag, task, task_group
 from airflow.models.expandinput import DictOfListsExpandInput, ListOfDictsExpandInput, MappedArgument
 from airflow.operators.empty import EmptyOperator
 from airflow.utils.task_group import MappedTaskGroup
+from airflow.utils.trigger_rule import TriggerRule
 
 
 def test_task_group_with_overridden_kwargs():
@@ -38,8 +39,7 @@ def test_task_group_with_overridden_kwargs():
         },
         add_suffix_on_collision=True,
     )
-    def simple_tg():
-        ...
+    def simple_tg(): ...
 
     tg_with_overridden_kwargs = simple_tg.override(
         group_id="custom_group_id",
@@ -64,7 +64,7 @@ def test_task_group_with_overridden_kwargs():
 def test_tooltip_derived_from_function_docstring():
     """Test that the tooltip for TaskGroup is the decorated-function's docstring."""
 
-    @dag(start_date=pendulum.datetime(2022, 1, 1))
+    @dag(schedule=None, start_date=pendulum.datetime(2022, 1, 1))
     def pipeline():
         @task_group()
         def tg():
@@ -83,7 +83,7 @@ def test_tooltip_not_overridden_by_function_docstring():
     docstring.
     """
 
-    @dag(start_date=pendulum.datetime(2022, 1, 1))
+    @dag(schedule=None, start_date=pendulum.datetime(2022, 1, 1))
     def pipeline():
         @task_group(tooltip="tooltip for the TaskGroup")
         def tg():
@@ -103,7 +103,7 @@ def test_partial_evolves_factory():
     def tg(a, b):
         pass
 
-    @dag(start_date=pendulum.datetime(2022, 1, 1))
+    @dag(schedule=None, start_date=pendulum.datetime(2022, 1, 1))
     def pipeline():
         nonlocal tgp
         tgp = tg.partial(a=1)
@@ -112,7 +112,7 @@ def test_partial_evolves_factory():
 
     assert d.task_group_dict == {}  # Calling partial() without expanding does not create a task group.
 
-    assert type(tgp) == type(tg)
+    assert type(tgp) is type(tg)
     assert tgp.partial_kwargs == {"a": 1}  # Partial kwargs are saved.
 
     # Warn if the partial object goes out of scope without being mapped.
@@ -121,7 +121,7 @@ def test_partial_evolves_factory():
 
 
 def test_expand_fail_empty():
-    @dag(start_date=pendulum.datetime(2022, 1, 1))
+    @dag(schedule=None, start_date=pendulum.datetime(2022, 1, 1))
     def pipeline():
         @task_group()
         def tg():
@@ -134,10 +134,33 @@ def test_expand_fail_empty():
     assert str(ctx.value) == "no arguments to expand against"
 
 
+@pytest.mark.db_test
+def test_fail_task_generated_mapping_with_trigger_rule_always(dag_maker, session):
+    @dag(schedule=None, start_date=pendulum.datetime(2022, 1, 1))
+    def pipeline():
+        @task
+        def get_param():
+            return ["a", "b", "c"]
+
+        @task(trigger_rule=TriggerRule.ALWAYS)
+        def t1(param):
+            return param
+
+        @task_group()
+        def tg(param):
+            t1(param)
+
+        with pytest.raises(
+            ValueError,
+            match="Task-generated mapping within a mapped task group is not allowed with trigger rule 'always'",
+        ):
+            tg.expand(param=get_param())
+
+
 def test_expand_create_mapped():
     saved = {}
 
-    @dag(start_date=pendulum.datetime(2022, 1, 1))
+    @dag(schedule=None, start_date=pendulum.datetime(2022, 1, 1))
     def pipeline():
         @task_group()
         def tg(a, b):
@@ -156,7 +179,7 @@ def test_expand_create_mapped():
 
 
 def test_expand_kwargs_no_wildcard():
-    @dag(start_date=pendulum.datetime(2022, 1, 1))
+    @dag(schedule=None, start_date=pendulum.datetime(2022, 1, 1))
     def pipeline():
         @task_group()
         def tg(**kwargs):
@@ -173,7 +196,7 @@ def test_expand_kwargs_no_wildcard():
 def test_expand_kwargs_create_mapped():
     saved = {}
 
-    @dag(start_date=pendulum.datetime(2022, 1, 1))
+    @dag(schedule=None, start_date=pendulum.datetime(2022, 1, 1))
     def pipeline():
         @task_group()
         def tg(a, b):
@@ -242,6 +265,7 @@ def test_task_group_expand_with_upstream(dag_maker, session, caplog):
 def test_override_dag_default_args():
     @dag(
         dag_id="test_dag",
+        schedule=None,
         start_date=pendulum.parse("20200101"),
         default_args={
             "retries": 1,
@@ -271,6 +295,7 @@ def test_override_dag_default_args():
 def test_override_dag_default_args_nested_tg():
     @dag(
         dag_id="test_dag",
+        schedule=None,
         start_date=pendulum.parse("20200101"),
         default_args={
             "retries": 1,
@@ -308,3 +333,19 @@ def test_override_dag_default_args_nested_tg():
     assert test_task.retries == 1
     assert test_task.owner == "y"
     assert test_task.execution_timeout == timedelta(seconds=10)
+
+
+def test_task_group_display_name_used_as_label():
+    """Test that the group_display_name for TaskGroup is used as the label for display on the UI."""
+
+    @dag(schedule=None, start_date=pendulum.datetime(2022, 1, 1))
+    def pipeline():
+        @task_group(group_display_name="my_custom_name")
+        def tg():
+            pass
+
+        tg()
+
+    p = pipeline()
+
+    assert p.task_group_dict["tg"].label == "my_custom_name"

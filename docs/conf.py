@@ -17,6 +17,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Configuration of Airflow Docs"""
+
 from __future__ import annotations
 
 # Airflow documentation build configuration file, created by
@@ -31,6 +32,7 @@ from __future__ import annotations
 # All configuration values have a default; values that are commented out
 # serve to show the default.
 import json
+import logging
 import os
 import pathlib
 import re
@@ -56,10 +58,14 @@ ROOT_DIR = CONF_DIR.parent
 # By default (e.g. on RTD), build docs for `airflow` package
 PACKAGE_NAME = os.environ.get("AIRFLOW_PACKAGE_NAME", "apache-airflow")
 PACKAGE_DIR: pathlib.Path
+SYSTEM_TESTS_DIR: pathlib.Path | None
+
+conf_py_path = f"/docs/{PACKAGE_NAME}/"
+
 if PACKAGE_NAME == "apache-airflow":
     PACKAGE_DIR = ROOT_DIR / "airflow"
     PACKAGE_VERSION = airflow.__version__
-    SYSTEM_TESTS_DIR = None
+    SYSTEM_TESTS_DIR = (ROOT_DIR / "tests" / "system" / "core").resolve(strict=True)
 elif PACKAGE_NAME.startswith("apache-airflow-providers-"):
     from provider_yaml_utils import load_package_data
 
@@ -71,14 +77,29 @@ elif PACKAGE_NAME.startswith("apache-airflow-providers-"):
             if provider_yaml["package-name"] == PACKAGE_NAME
         )
     except StopIteration:
-        raise Exception(f"Could not find provider.yaml file for package: {PACKAGE_NAME}")
-    PACKAGE_DIR = pathlib.Path(CURRENT_PROVIDER["package-dir"])
-    PACKAGE_VERSION = CURRENT_PROVIDER["versions"][0]
-    SYSTEM_TESTS_DIR = CURRENT_PROVIDER["system-tests-dir"]
+        raise RuntimeError(f"Could not find provider.yaml file for package: {PACKAGE_NAME}")
+
+    # Oddity: since we set autoapi_python_use_implicit_namespaces for provider packages, it does a "../"on the
+    # dir we give it. So we want to set the package dir to be airflow so it goes up to src, else we end up
+    # with "src" in the output paths of modules which we don't want
+
+    package_id = PACKAGE_NAME[len("apache-airflow-providers-") :].replace("-", ".")
+    # TODO(potiuk) - remove the if when all providers are new-style
+    if CURRENT_PROVIDER["is_new_provider"]:
+        base_provider_dir = (ROOT_DIR / "providers").joinpath(*package_id.split("."))
+        PACKAGE_DIR = base_provider_dir / "src" / "airflow"
+        PACKAGE_VERSION = CURRENT_PROVIDER["versions"][0]
+        SYSTEM_TESTS_DIR = base_provider_dir / "tests" / "system"
+        target_dir = ROOT_DIR / "docs" / PACKAGE_NAME
+        conf_py_path = f"/providers/{package_id.replace('.', '/')}/docs/"
+    else:
+        PACKAGE_DIR = ROOT_DIR / "providers" / "src" / "airflow"
+        PACKAGE_VERSION = CURRENT_PROVIDER["versions"][0]
+        SYSTEM_TESTS_DIR = ROOT_DIR / "providers" / "tests" / "system"
 elif PACKAGE_NAME == "apache-airflow-providers":
     from provider_yaml_utils import load_package_data
 
-    PACKAGE_DIR = ROOT_DIR / "airflow" / "providers"
+    PACKAGE_DIR = ROOT_DIR / "providers" / "src"
     PACKAGE_VERSION = "devel"
     ALL_PROVIDER_YAMLS = load_package_data()
     SYSTEM_TESTS_DIR = None
@@ -106,7 +127,12 @@ os.environ["BUILDING_AIRFLOW_DOCS"] = "TRUE"
 global_substitutions = {
     "version": PACKAGE_VERSION,
     "airflow-version": airflow.__version__,
+    "experimental": "This is an :ref:`experimental feature <experimental>`.",
 }
+
+if PACKAGE_NAME != "apache-airflow":
+    global_substitutions["experimental"] = "This is an :external:ref:`experimental feature <experimental>`."
+
 
 # == Sphinx configuration ======================================================
 
@@ -123,13 +149,7 @@ release = PACKAGE_VERSION
 # -- General configuration -----------------------------------------------------
 # See: https://www.sphinx-doc.org/en/master/usage/configuration.html
 
-rst_epilog = "\n".join(
-    f".. |{key}| replace:: {replace}"
-    for key, replace in {
-        **global_substitutions,
-        "experimental": "This is an :ref:`experimental feature <experimental>`.",
-    }.items()
-)
+rst_epilog = "\n".join(f".. |{key}| replace:: {replace}" for key, replace in global_substitutions.items())
 
 smartquotes_excludes = {"builders": ["man", "text", "spelling"]}
 
@@ -137,7 +157,6 @@ smartquotes_excludes = {"builders": ["man", "text", "spelling"]}
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
 extensions = [
-    "provider_init_hack",
     "sphinx.ext.autodoc",
     "sphinx.ext.viewcode",
     "sphinxarg.ext",
@@ -197,8 +216,6 @@ if PACKAGE_NAME == "apache-airflow":
     exclude_patterns = [
         # We only link to selected subpackages.
         "_api/airflow/index.rst",
-        # "_api/airflow/operators/index.rst",
-        # "_api/airflow/sensors/index.rst",
         # Included in the cluster-policies doc
         "_api/airflow/policies/index.rst",
         "README.rst",
@@ -346,6 +363,7 @@ if PACKAGE_NAME == "apache-airflow":
         "administration-and-deployment/logging-monitoring/advanced-logging-configuration.html",
         "howto/docker-compose/index.html",
     ]
+    html_js_files.append("redirects.js")
 if PACKAGE_NAME.startswith("apache-airflow-providers"):
     manual_substitutions_in_generated_html = ["example-dags.html", "operators.html", "index.html"]
 if PACKAGE_NAME == "docker-stack":
@@ -381,7 +399,7 @@ html_theme_options["navbar_links"] = [
     {"href": "/community/", "text": "Community"},
     {"href": "/meetups/", "text": "Meetups"},
     {"href": "/docs/", "text": "Documentation"},
-    {"href": "/use-cases/", "text": "Use-cases"},
+    {"href": "/use-cases/", "text": "Use Cases"},
     {"href": "/announcements/", "text": "Announcements"},
     {"href": "/blog/", "text": "Blog"},
     {"href": "/ecosystem/", "text": "Ecosystem"},
@@ -407,7 +425,7 @@ html_context = {
     # https://github.com/apache/airflow-site/blob/91f760c/sphinx_airflow_theme/sphinx_airflow_theme/suggest_change_button.html#L36-L40
     #
     "theme_vcs_pageview_mode": "edit",
-    "conf_py_path": f"/docs/{PACKAGE_NAME}/",
+    "conf_py_path": conf_py_path,
     "github_user": "apache",
     "github_repo": "airflow",
     "github_version": "main",
@@ -438,10 +456,6 @@ def get_configs_and_deprecations(
     ) in AirflowConfigParser.deprecated_options.items():
         deprecated_options[deprecated_section][deprecated_key] = section, key, since_version
 
-    for (section, key), deprecated in AirflowConfigParser.many_to_one_deprecated_options.items():
-        for deprecated_section, deprecated_key, since_version in deprecated:
-            deprecated_options[deprecated_section][deprecated_key] = section, key, since_version
-
     if package_name == "apache-airflow":
         configs = retrieve_configuration_description(include_providers=False)
     else:
@@ -453,7 +467,7 @@ def get_configs_and_deprecations(
     # the config has been templated, not before
     # e.g. {{dag_id}} in default_config.cfg -> {dag_id} in airflow.cfg, and what we want in docs
     keys_to_format = ["default", "example"]
-    for conf_name, conf_section in configs.items():
+    for conf_section in configs.values():
         for option_name, option in list(conf_section["options"].items()):
             for key in keys_to_format:
                 if option[key] and "{{" in option[key]:
@@ -463,7 +477,7 @@ def get_configs_and_deprecations(
                 del conf_section["options"][option_name]
 
     # Sort options, config and deprecated options for JINJA variables to display
-    for section_name, config in configs.items():
+    for config in configs.values():
         config["options"] = {k: v for k, v in sorted(config["options"].items())}
     configs = {k: v for k, v in sorted(configs.items())}
     for section in deprecated_options:
@@ -744,8 +758,6 @@ autoapi_dirs: list[os.PathLike] = []
 if PACKAGE_NAME != "docker-stack":
     autoapi_dirs.append(PACKAGE_DIR)
 
-if SYSTEM_TESTS_DIR and os.path.exists(SYSTEM_TESTS_DIR):
-    autoapi_dirs.append(SYSTEM_TESTS_DIR)
 
 # A directory that has user-defined templates to override our default templates.
 if PACKAGE_NAME == "apache-airflow":
@@ -759,17 +771,85 @@ autoapi_ignore = [
     "*/node_modules/*",
     "*/migrations/*",
     "*/contrib/*",
-    "**/example_sla_dag.py",
-    "**/example_taskflow_api_docker_virtualenv.py",
-    "**/example_dag_decorator.py",
+    "*/example_taskflow_api_docker_virtualenv.py",
+    "*/example_dag_decorator.py",
+    "*/conftest.py",
+    "*/tests/__init__.py",
+    "*/tests/system/__init__.py",
+    "*/tests/system/example_empty.py",
+    "*/test_aws_auth_manager.py",
+    # These sub-folders aren't really providers, but we need __init__.py files else various tools (ruff, mypy)
+    # get confused by providers/tests/systems/cncf/kubernetes and think that folder is the top level
+    # kubernetes module!
+    # TODO (potiuk): remove these once we move all providers to the new structure
+    "*/providers/src/airflow/providers/__init__.py",
+    "*/providers/tests/__init__.py",
+    "*/providers/tests/cncf/__init__.py",
+    "*/providers/tests/common/__init__.py",
+    "*/providers/tests/apache/__init__.py",
+    "*/providers/tests/dbt/__init__.py",
+    "*/providers/tests/microsoft/__init__.py",
+    "*/providers/tests/system/__init__.py",
+    "*/providers/tests/system/apache/__init__.py",
+    "*/providers/tests/system/cncf/__init__.py",
+    "*/providers/tests/system/common/__init__.py",
+    "*/providers/tests/system/dbt/__init__.py",
+    "*/providers/tests/system/microsoft/__init__.py",
 ]
-if PACKAGE_NAME == "apache-airflow":
-    autoapi_ignore.append("*/airflow/providers/*")
-elif PACKAGE_NAME == "docker-stack":
-    autoapi_ignore.append("*/airflow/providers/*")
+
+ignore_re = re.compile(r"\[AutoAPI\] .* Ignoring \s (?P<path>/[\w/.]*)", re.VERBOSE)
+
+
+# Make the "Ignoring /..." log messages slightly less verbose
+def filter_ignore(record: logging.LogRecord) -> bool:
+    matches = ignore_re.search(record.msg)
+    if not matches:
+        return True
+    if matches["path"].endswith("__init__.py"):
+        record.msg = record.msg.replace("__init__.py", "")
+        return True
+    return False
+
+
+autoapi_log = logging.getLogger("sphinx.autoapi.mappers.base")
+autoapi_log.addFilter(filter_ignore)
+
+if PACKAGE_NAME.startswith("apache-airflow-providers-"):
+    autoapi_python_use_implicit_namespaces = True
+    from provider_yaml_utils import load_package_data
+
+    autoapi_ignore.extend(
+        (
+            "*/airflow/__init__.py",
+            "*/airflow/providers/__init__.py",
+            "*/example_dags/*",
+            "*/airflow/providers/cncf/kubernetes/backcompat/*",
+            "*/providers/src/apache/airflow/providers/cncf/kubernetes/backcompat/*",
+            "*/providers/__init__.py",
+        )
+    )
+
+    # Here we remove all other providers from the autoapi list, only leaving the current provider,
+    # Otherwise all the other provider indexes will no be found in any TOC.
+
+    for p in load_package_data(include_suspended=True):
+        if p["package-name"] == PACKAGE_NAME:
+            continue
+        autoapi_ignore.extend((p["package-dir"] + "/*", p["system-tests-dir"] + "/*"))
+
+    autoapi_keep_files = True
+
+    if SYSTEM_TESTS_DIR and os.path.exists(SYSTEM_TESTS_DIR):
+        test_dir = SYSTEM_TESTS_DIR.parent
+        autoapi_dirs.append(test_dir)
+
+        autoapi_ignore.extend(f"{d}/*" for d in test_dir.glob("*") if d.is_dir() and d.name != "system")
+    print("#### AUTOAPI_IGNORE:")
+    print(autoapi_ignore)
+    print("#### END OF AUTOAPI_IGNORE:")
 else:
-    autoapi_ignore.append("*/airflow/providers/cncf/kubernetes/backcompat/*")
-    autoapi_ignore.append("*/example_dags/*")
+    if SYSTEM_TESTS_DIR and os.path.exists(SYSTEM_TESTS_DIR):
+        autoapi_dirs.append(SYSTEM_TESTS_DIR)
 # Keep the AutoAPI generated files on the filesystem after the run.
 # Useful for debugging.
 autoapi_keep_files = True
@@ -837,7 +917,7 @@ if PACKAGE_NAME == "apache-airflow":
 
 elif PACKAGE_NAME == "apache-airflow-providers-fab":
     OPENAPI_FILE = os.path.join(
-        os.path.dirname(__file__), "..", "airflow", "providers", "fab", "auth_manager", "openapi", "v1.yaml"
+        os.path.dirname(__file__), "..", "providers", "fab", "auth_manager", "openapi", "v1.yaml"
     )
     redoc = [
         {

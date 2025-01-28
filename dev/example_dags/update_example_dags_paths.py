@@ -38,10 +38,10 @@ AIRFLOW_SOURCES_ROOT = Path(__file__).parents[3].resolve()
 
 
 EXAMPLE_DAGS_URL_MATCHER = re.compile(
-    r"^(.*)(https://github.com/apache/airflow/tree/(.*)/airflow/providers/(.*)/example_dags)(/?\".*)$"
+    r"^(.*)(https://github.com/apache/airflow/tree/(.*)/providers/src/airflow/providers/(.*)/example_dags)(/?\".*)$"
 )
 SYSTEM_TESTS_URL_MATCHER = re.compile(
-    r"^(.*)(https://github.com/apache/airflow/tree/(.*)/tests/system/providers/(.*))(/?\".*)$"
+    r"^(.*)(https://github.com/apache/airflow/tree/(.*)/providers/tests/system/(.*))(/?\".*)$"
 )
 
 
@@ -67,11 +67,11 @@ def replace_match(file: str, line: str, provider: str, version: str) -> str | No
                 continue
             system_tests_url = (
                 f"https://github.com/apache/airflow/tree/providers-{provider}/{version}"
-                f"/tests/system/providers/{url_path_to_dir}"
+                f"/providers/tests/system/{url_path_to_dir}"
             )
             example_dags_url = (
                 f"https://github.com/apache/airflow/tree/providers-{provider}/{version}"
-                f"/airflow/providers/{url_path_to_dir}/example_dags"
+                f"/providers/src/airflow/providers/{url_path_to_dir}/example_dags"
             )
             if check_if_url_exists(system_tests_url) and index == 1:
                 new_line = re.sub(matcher, r"\1" + system_tests_url + r"\5", line)
@@ -93,7 +93,7 @@ def replace_match(file: str, line: str, provider: str, version: str) -> str | No
 def find_matches(_file: Path, provider: str, version: str):
     lines = _file.read_text().splitlines(keepends=True)
     new_lines = []
-    for index, line in enumerate(lines):
+    for line in lines:
         new_line = replace_match(str(_file), line, provider, version)
         if new_line:
             new_lines.append(new_line)

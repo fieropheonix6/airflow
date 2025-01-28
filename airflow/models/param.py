@@ -18,25 +18,19 @@ from __future__ import annotations
 
 import contextlib
 import copy
-import datetime
 import json
 import logging
-import warnings
-from typing import TYPE_CHECKING, Any, ClassVar, ItemsView, Iterable, MutableMapping, ValuesView
+from collections.abc import ItemsView, Iterable, MutableMapping, ValuesView
+from typing import TYPE_CHECKING, Any, ClassVar
 
-from pendulum.parsing import parse_iso8601
-
-from airflow.exceptions import AirflowException, ParamValidationError, RemovedInAirflow3Warning
-from airflow.utils import timezone
-from airflow.utils.mixins import ResolveMixin
+from airflow.exceptions import AirflowException, ParamValidationError
+from airflow.sdk.definitions._internal.mixins import ResolveMixin
 from airflow.utils.types import NOTSET, ArgNotSet
 
 if TYPE_CHECKING:
-    from airflow.models.dag import DAG
-    from airflow.models.dagrun import DagRun
-    from airflow.models.operator import Operator
-    from airflow.serialization.pydantic.dag_run import DagRunPydantic
-    from airflow.utils.context import Context
+    from airflow.sdk.definitions.context import Context
+    from airflow.sdk.definitions.dag import DAG
+    from airflow.sdk.types import Operator
 
 logger = logging.getLogger(__name__)
 
@@ -59,7 +53,7 @@ class Param:
 
     def __init__(self, default: Any = NOTSET, description: str | None = None, **kwargs):
         if default is not NOTSET:
-            self._warn_if_not_json(default)
+            self._check_json(default)
         self.value = default
         self.description = description
         self.schema = kwargs.pop("schema") if "schema" in kwargs else kwargs
@@ -68,36 +62,14 @@ class Param:
         return Param(self.value, self.description, schema=self.schema)
 
     @staticmethod
-    def _warn_if_not_json(value):
+    def _check_json(value):
         try:
             json.dumps(value)
         except Exception:
-            warnings.warn(
-                "The use of non-json-serializable params is deprecated and will be removed in "
-                "a future release",
-                RemovedInAirflow3Warning,
+            raise ParamValidationError(
+                "All provided parameters must be json-serializable. "
+                f"The value '{value}' is not serializable."
             )
-
-    @staticmethod
-    def _warn_if_not_rfc3339_dt(value):
-        """Fallback to iso8601 datetime validation if rfc3339 failed."""
-        try:
-            iso8601_value = parse_iso8601(value)
-        except Exception:
-            return None
-        if not isinstance(iso8601_value, datetime.datetime):
-            return None
-        warnings.warn(
-            f"The use of non-RFC3339 datetime: {value!r} is deprecated "
-            "and will be removed in a future release",
-            RemovedInAirflow3Warning,
-        )
-        if timezone.is_naive(iso8601_value):
-            warnings.warn(
-                "The use naive datetime is deprecated and will be removed in a future release",
-                RemovedInAirflow3Warning,
-            )
-        return value
 
     def resolve(self, value: Any = NOTSET, suppress_exception: bool = False) -> Any:
         """
@@ -117,7 +89,7 @@ class Param:
         from jsonschema.exceptions import ValidationError
 
         if value is not NOTSET:
-            self._warn_if_not_json(value)
+            self._check_json(value)
         final_val = self.value if value is NOTSET else value
         if isinstance(final_val, ArgNotSet):
             if suppress_exception:
@@ -126,11 +98,6 @@ class Param:
         try:
             jsonschema.validate(final_val, self.schema, format_checker=FormatChecker())
         except ValidationError as err:
-            if err.schema.get("format") == "date-time":
-                rfc3339_value = self._warn_if_not_rfc3339_dt(final_val)
-                if rfc3339_value:
-                    self.value = rfc3339_value
-                    return rfc3339_value
             if suppress_exception:
                 return None
             raise ParamValidationError(err) from None
@@ -294,7 +261,8 @@ class ParamsDict(MutableMapping[str, Any]):
 
 
 class DagParam(ResolveMixin):
-    """DAG run parameter reference.
+    """
+    DAG run parameter reference.
 
     This binds a simple Param object to a name within a DAG instance, so that it
     can be resolved during the runtime via the ``{{ context }}`` dictionary. The
@@ -321,37 +289,65 @@ class DagParam(ResolveMixin):
             current_dag.params[name] = default
         self._name = name
         self._default = default
+        self.current_dag = current_dag
 
     def iter_references(self) -> Iterable[tuple[Operator, str]]:
         return ()
 
-    def resolve(self, context: Context) -> Any:
+    def resolve(self, context: Context, *, include_xcom: bool = True) -> Any:
         """Pull DagParam value from DagRun context. This method is run during ``op.execute()``."""
         with contextlib.suppress(KeyError):
-            return context["dag_run"].conf[self._name]
+            if context["dag_run"].conf:
+                return context["dag_run"].conf[self._name]
         if self._default is not NOTSET:
             return self._default
         with contextlib.suppress(KeyError):
             return context["params"][self._name]
         raise AirflowException(f"No value could be resolved for parameter {self._name}")
 
+    def serialize(self) -> dict:
+        """Serialize the DagParam object into a dictionary."""
+        return {
+            "dag_id": self.current_dag.dag_id,
+            "name": self._name,
+            "default": self._default,
+        }
+
+    @classmethod
+    def deserialize(cls, data: dict, dags: dict) -> DagParam:
+        """
+        Deserializes the dictionary back into a DagParam object.
+
+        :param data: The serialized representation of the DagParam.
+        :param dags: A dictionary of available DAGs to look up the DAG.
+        """
+        dag_id = data["dag_id"]
+        # Retrieve the current DAG from the provided DAGs dictionary
+        current_dag = dags.get(dag_id)
+        if not current_dag:
+            raise ValueError(f"DAG with id {dag_id} not found.")
+
+        return cls(current_dag=current_dag, name=data["name"], default=data["default"])
+
 
 def process_params(
     dag: DAG,
     task: Operator,
-    dag_run: DagRun | DagRunPydantic | None,
+    dagrun_conf: dict[str, Any] | None,
     *,
     suppress_exception: bool,
 ) -> dict[str, Any]:
     """Merge, validate params, and convert them into a simple dict."""
     from airflow.configuration import conf
 
+    dagrun_conf = dagrun_conf or {}
+
     params = ParamsDict(suppress_exception=suppress_exception)
     with contextlib.suppress(AttributeError):
         params.update(dag.params)
     if task.params:
         params.update(task.params)
-    if conf.getboolean("core", "dag_run_conf_overrides_params") and dag_run and dag_run.conf:
-        logger.debug("Updating task params (%s) with DagRun.conf (%s)", params, dag_run.conf)
-        params.update(dag_run.conf)
+    if conf.getboolean("core", "dag_run_conf_overrides_params") and dagrun_conf:
+        logger.debug("Updating task params (%s) with DagRun.conf (%s)", params, dagrun_conf)
+        params.update(dagrun_conf)
     return params.validate()

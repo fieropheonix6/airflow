@@ -16,6 +16,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Example DAG demonstrating the usage of XComs."""
+
 from __future__ import annotations
 
 import pendulum
@@ -23,7 +24,7 @@ import pendulum
 from airflow.decorators import task
 from airflow.models.dag import DAG
 from airflow.models.xcom_arg import XComArg
-from airflow.operators.bash import BashOperator
+from airflow.providers.standard.operators.bash import BashOperator
 
 value_1 = [1, 2, 3]
 value_2 = {"a": "b"}

@@ -79,32 +79,23 @@ SERVICE_ACCOUNT_NAME_TUPLES = [
 ]
 
 CUSTOM_SERVICE_ACCOUNT_NAMES = (
-    CUSTOM_SCHEDULER_NAME,
-    CUSTOM_WEBSERVER_NAME,
-    CUSTOM_WORKER_NAME,
-    CUSTOM_TRIGGERER_NAME,
-    CUSTOM_CLEANUP_NAME,
-    CUSTOM_FLOWER_NAME,
-    CUSTOM_PGBOUNCER_NAME,
-    CUSTOM_STATSD_NAME,
-    CUSTOM_CREATE_USER_JOBS_NAME,
-    CUSTOM_MIGRATE_DATABASE_JOBS_NAME,
-    CUSTOM_REDIS_NAME,
-    CUSTOM_POSTGRESQL_NAME,
-) = (
-    "TestScheduler",
-    "TestWebserver",
-    "TestWorker",
-    "TestTriggerer",
-    "TestCleanup",
-    "TestFlower",
-    "TestPGBouncer",
-    "TestStatsd",
-    "TestCreateUserJob",
-    "TestMigrateDatabaseJob",
-    "TestRedis",
-    "TestPostgresql",
+    (CUSTOM_SCHEDULER_NAME := "TestScheduler"),
+    (CUSTOM_DAG_PROCESSOR_NAME := "TestDagProcessor"),
+    (CUSTOM_WEBSERVER_NAME := "TestWebserver"),
+    (CUSTOM_API_SERVER_NAME := "TestAPISserver"),
+    (CUSTOM_WORKER_NAME := "TestWorker"),
+    (CUSTOM_TRIGGERER_NAME := "TestTriggerer"),
+    (CUSTOM_CLEANUP_NAME := "TestCleanup"),
+    (CUSTOM_FLOWER_NAME := "TestFlower"),
+    (CUSTOM_PGBOUNCER_NAME := "TestPGBouncer"),
+    (CUSTOM_STATSD_NAME := "TestStatsd"),
+    (CUSTOM_CREATE_USER_JOBS_NAME := "TestCreateUserJob"),
+    (CUSTOM_MIGRATE_DATABASE_JOBS_NAME := "TestMigrateDatabaseJob"),
+    (CUSTOM_REDIS_NAME := "TestRedis"),
+    (CUSTOM_POSTGRESQL_NAME := "TestPostgresql"),
 )
+
+parametrize_version = pytest.mark.parametrize("version", ["2.3.2", "2.4.0", "3.0.0", "default"])
 
 
 class TestRBAC:
@@ -116,18 +107,29 @@ class TestRBAC:
         return values
 
     @staticmethod
-    def _get_object_tuples(version):
+    def _get_object_tuples(version, sa: bool = True):
         tuples = copy(DEPLOYMENT_NO_RBAC_NO_SA_KIND_NAME_TUPLES)
-        if version == "default":
+        if version in {"default", "3.0.0"}:
             tuples.append(("Service", "test-rbac-triggerer"))
             tuples.append(("StatefulSet", "test-rbac-triggerer"))
         else:
             tuples.append(("Deployment", "test-rbac-triggerer"))
         if version == "2.3.2":
             tuples.append(("Secret", "test-rbac-result-backend"))
+        if version == "3.0.0":
+            tuples.extend(
+                (
+                    ("Service", "test-rbac-api-server"),
+                    ("Deployment", "test-rbac-api-server"),
+                    ("Deployment", "test-rbac-dag-processor"),
+                )
+            )
+            if sa:
+                tuples.append(("ServiceAccount", "test-rbac-api-server"))
+                tuples.append(("ServiceAccount", "test-rbac-dag-processor"))
         return tuples
 
-    @pytest.mark.parametrize("version", ["2.3.2", "2.4.0", "default"])
+    @parametrize_version
     def test_deployments_no_rbac_no_sa(self, version):
         k8s_objects = render_chart(
             "test-rbac",
@@ -149,7 +151,9 @@ class TestRBAC:
                     },
                     "redis": {"serviceAccount": {"create": False}},
                     "scheduler": {"serviceAccount": {"create": False}},
+                    "dagProcessor": {"serviceAccount": {"create": False}},
                     "webserver": {"serviceAccount": {"create": False}},
+                    "apiServer": {"serviceAccount": {"create": False}},
                     "workers": {"serviceAccount": {"create": False}},
                     "triggerer": {"serviceAccount": {"create": False}},
                     "statsd": {"serviceAccount": {"create": False}},
@@ -163,9 +167,9 @@ class TestRBAC:
         list_of_kind_names_tuples = [
             (k8s_object["kind"], k8s_object["metadata"]["name"]) for k8s_object in k8s_objects
         ]
-        assert sorted(list_of_kind_names_tuples) == sorted(self._get_object_tuples(version))
+        assert sorted(list_of_kind_names_tuples) == sorted(self._get_object_tuples(version, sa=False))
 
-    @pytest.mark.parametrize("version", ["2.3.2", "2.4.0", "default"])
+    @parametrize_version
     def test_deployments_no_rbac_with_sa(self, version):
         k8s_objects = render_chart(
             "test-rbac",
@@ -186,7 +190,7 @@ class TestRBAC:
         real_list_of_kind_names = self._get_object_tuples(version) + SERVICE_ACCOUNT_NAME_TUPLES
         assert sorted(list_of_kind_names_tuples) == sorted(real_list_of_kind_names)
 
-    @pytest.mark.parametrize("version", ["2.3.2", "2.4.0", "default"])
+    @parametrize_version
     def test_deployments_with_rbac_no_sa(self, version):
         k8s_objects = render_chart(
             "test-rbac",
@@ -200,7 +204,9 @@ class TestRBAC:
                         },
                     },
                     "scheduler": {"serviceAccount": {"create": False}},
+                    "dagProcessor": {"serviceAccount": {"create": False}},
                     "webserver": {"serviceAccount": {"create": False}},
+                    "apiServer": {"serviceAccount": {"create": False}},
                     "workers": {"serviceAccount": {"create": False}},
                     "triggerer": {"serviceAccount": {"create": False}},
                     "flower": {"enabled": True, "serviceAccount": {"create": False}},
@@ -221,10 +227,10 @@ class TestRBAC:
         list_of_kind_names_tuples = [
             (k8s_object["kind"], k8s_object["metadata"]["name"]) for k8s_object in k8s_objects
         ]
-        real_list_of_kind_names = self._get_object_tuples(version) + RBAC_ENABLED_KIND_NAME_TUPLES
+        real_list_of_kind_names = self._get_object_tuples(version, sa=False) + RBAC_ENABLED_KIND_NAME_TUPLES
         assert sorted(list_of_kind_names_tuples) == sorted(real_list_of_kind_names)
 
-    @pytest.mark.parametrize("version", ["2.3.2", "2.4.0", "default"])
+    @parametrize_version
     def test_deployments_with_rbac_with_sa(self, version):
         k8s_objects = render_chart(
             "test-rbac",
@@ -250,6 +256,7 @@ class TestRBAC:
         k8s_objects = render_chart(
             "test-rbac",
             values={
+                "airflowVersion": "3.0.0",
                 "fullnameOverride": "test-rbac",
                 "cleanup": {
                     "enabled": True,
@@ -258,7 +265,9 @@ class TestRBAC:
                     },
                 },
                 "scheduler": {"serviceAccount": {"name": CUSTOM_SCHEDULER_NAME}},
+                "dagProcessor": {"serviceAccount": {"name": CUSTOM_DAG_PROCESSOR_NAME}},
                 "webserver": {"serviceAccount": {"name": CUSTOM_WEBSERVER_NAME}},
+                "apiServer": {"serviceAccount": {"name": CUSTOM_API_SERVER_NAME}},
                 "workers": {"serviceAccount": {"name": CUSTOM_WORKER_NAME}},
                 "triggerer": {"serviceAccount": {"name": CUSTOM_TRIGGERER_NAME}},
                 "flower": {"enabled": True, "serviceAccount": {"name": CUSTOM_FLOWER_NAME}},
@@ -286,6 +295,7 @@ class TestRBAC:
         k8s_objects = render_chart(
             "test-rbac",
             values={
+                "airflowVersion": "3.0.0",
                 "fullnameOverride": "test-rbac",
                 "cleanup": {
                     "enabled": True,
@@ -294,7 +304,9 @@ class TestRBAC:
                     },
                 },
                 "scheduler": {"serviceAccount": {"name": CUSTOM_SCHEDULER_NAME}},
+                "dagProcessor": {"serviceAccount": {"name": CUSTOM_DAG_PROCESSOR_NAME}},
                 "webserver": {"serviceAccount": {"name": CUSTOM_WEBSERVER_NAME}},
+                "apiServer": {"serviceAccount": {"name": CUSTOM_API_SERVER_NAME}},
                 "workers": {"serviceAccount": {"name": CUSTOM_WORKER_NAME}},
                 "triggerer": {"serviceAccount": {"name": CUSTOM_TRIGGERER_NAME}},
                 "flower": {"enabled": True, "serviceAccount": {"name": CUSTOM_FLOWER_NAME}},
@@ -330,6 +342,7 @@ class TestRBAC:
         k8s_objects = render_chart(
             "test-rbac",
             values={
+                "airflowVersion": "3.0.0",
                 "fullnameOverride": "test-rbac",
                 "executor": "LocalExecutor",
                 "cleanup": {"enabled": False},
@@ -347,7 +360,9 @@ class TestRBAC:
         ]
         service_account_names = [
             "test-rbac-scheduler",
+            "test-rbac-dag-processor",
             "test-rbac-webserver",
+            "test-rbac-api-server",
             "test-rbac-triggerer",
             "test-rbac-migrate-database-job",
         ]

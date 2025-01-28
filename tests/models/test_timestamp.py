@@ -20,12 +20,13 @@ import pendulum
 import pytest
 import time_machine
 
-from airflow.models import Log, TaskInstance
+from airflow.models import Log
 from airflow.operators.empty import EmptyOperator
 from airflow.utils import timezone
 from airflow.utils.session import provide_session
 from airflow.utils.state import State
-from tests.test_utils.db import clear_db_dags, clear_db_logs, clear_db_runs
+
+from tests_common.test_utils.db import clear_db_dags, clear_db_logs, clear_db_runs
 
 pytestmark = pytest.mark.db_test
 
@@ -40,8 +41,9 @@ def clear_db():
 def add_log(execdate, session, dag_maker, timezone_override=None):
     with dag_maker(dag_id="logging", default_args={"start_date": execdate}):
         task = EmptyOperator(task_id="dummy")
-    dag_maker.create_dagrun()
-    task_instance = TaskInstance(task=task, execution_date=execdate, state="success")
+    dag_run = dag_maker.create_dagrun()
+    task_instance = dag_run.get_task_instance(task.task_id)
+    task_instance.set_state(State.SUCCESS)
     session.merge(task_instance)
     log = Log(State.RUNNING, task_instance)
     if timezone_override:
