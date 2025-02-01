@@ -17,32 +17,18 @@
 from __future__ import annotations
 
 import enum
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, TypedDict
 
-from airflow.typing_compat import TypedDict
+import airflow.sdk.definitions._internal.types
 
 if TYPE_CHECKING:
     from datetime import datetime
 
+    from airflow.typing_compat import TypeAlias
 
-class ArgNotSet:
-    """Sentinel type for annotations, useful when None is not viable.
+ArgNotSet: TypeAlias = airflow.sdk.definitions._internal.types.ArgNotSet
 
-    Use like this::
-
-        def is_arg_passed(arg: Union[ArgNotSet, None] = NOTSET) -> bool:
-            if arg is NOTSET:
-                return False
-            return True
-
-
-        is_arg_passed()  # False.
-        is_arg_passed(None)  # True.
-    """
-
-
-NOTSET = ArgNotSet()
-"""Sentinel value for argument default. See ``ArgNotSet``."""
+NOTSET = airflow.sdk.definitions._internal.types.NOTSET
 
 
 class DagRunType(str, enum.Enum):
@@ -51,7 +37,7 @@ class DagRunType(str, enum.Enum):
     BACKFILL_JOB = "backfill"
     SCHEDULED = "scheduled"
     MANUAL = "manual"
-    DATASET_TRIGGERED = "dataset_triggered"
+    ASSET_TRIGGERED = "asset_triggered"
 
     def __str__(self) -> str:
         return self.value
@@ -72,3 +58,16 @@ class EdgeInfoType(TypedDict):
     """Extra metadata that the DAG can store about an edge, usually generated from an EdgeModifier."""
 
     label: str | None
+
+
+class DagRunTriggeredByType(enum.Enum):
+    """Class with TriggeredBy types for DagRun."""
+
+    CLI = "cli"  # for the trigger subcommand of the CLI: airflow dags trigger
+    OPERATOR = "operator"  # for the TriggerDagRunOperator
+    REST_API = "rest_api"  # for triggering the DAG via RESTful API
+    UI = "ui"  # for clicking the `Trigger DAG` button
+    TEST = "test"  # for dag.test()
+    TIMETABLE = "timetable"  # for timetable based triggering
+    ASSET = "asset"  # for asset_triggered run type
+    BACKFILL = "backfill"

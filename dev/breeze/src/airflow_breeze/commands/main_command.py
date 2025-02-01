@@ -24,22 +24,23 @@ from typing import TYPE_CHECKING, Any
 
 from airflow_breeze.commands.ci_image_commands import ci_image
 from airflow_breeze.commands.common_options import (
+    option_all_integration,
     option_answer,
     option_backend,
     option_builder,
-    option_database_isolation,
     option_db_reset,
     option_docker_host,
     option_dry_run,
     option_forward_credentials,
     option_github_repository,
-    option_integration,
     option_max_time,
     option_mysql_version,
     option_postgres_version,
     option_project_name,
     option_python,
     option_standalone_dag_processor,
+    option_use_uv,
+    option_uv_http_timeout,
     option_verbose,
 )
 from airflow_breeze.commands.production_image_commands import prod_image
@@ -48,7 +49,7 @@ from airflow_breeze.configure_rich_click import click
 from airflow_breeze.utils.click_utils import BreezeGroup
 from airflow_breeze.utils.confirm import Answer, user_confirm
 from airflow_breeze.utils.console import get_console
-from airflow_breeze.utils.docker_command_utils import remove_docker_networks
+from airflow_breeze.utils.docker_command_utils import remove_docker_networks, remove_docker_volumes
 from airflow_breeze.utils.path_utils import AIRFLOW_HOME_DIR, BUILD_CACHE_DIR
 from airflow_breeze.utils.run_utils import run_command
 from airflow_breeze.utils.shared_options import get_dry_run
@@ -106,19 +107,20 @@ class MainGroupWithAliases(BreezeGroup):
 @option_answer
 @option_backend
 @option_builder
-@option_database_isolation
 @option_db_reset
 @option_docker_host
 @option_dry_run
 @option_forward_credentials
 @option_github_repository
-@option_integration
+@option_all_integration
 @option_max_time
 @option_mysql_version
 @option_postgres_version
 @option_python
 @option_project_name
 @option_standalone_dag_processor
+@option_use_uv
+@option_uv_http_timeout
 @option_verbose
 @click.pass_context
 def main(ctx: click.Context, **kwargs: dict[str, Any]):
@@ -269,10 +271,14 @@ def cleanup(all: bool):
                 sys.exit(0)
         else:
             get_console().print("[info]No locally downloaded images to remove[/]\n")
-    get_console().print("Removing unused networks")
-    given_answer = user_confirm("Are you sure with the removal of unused docker networks?")
+    get_console().print("Removing networks created by breeze")
+    given_answer = user_confirm("Are you sure with the removal of docker networks created by breeze?")
     if given_answer == Answer.YES:
         remove_docker_networks()
+    get_console().print("Removing volumes created by breeze")
+    given_answer = user_confirm("Are you sure with the removal of docker volumes created by breeze?")
+    if given_answer == Answer.YES:
+        remove_docker_volumes()
     get_console().print("Pruning docker images")
     given_answer = user_confirm("Are you sure with the removal of docker images?")
     if given_answer == Answer.YES:

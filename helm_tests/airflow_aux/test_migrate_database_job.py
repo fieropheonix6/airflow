@@ -27,9 +27,9 @@ class TestMigrateDatabaseJob:
 
     def test_should_run_by_default(self):
         docs = render_chart(show_only=["templates/jobs/migrate-database-job.yaml"])
-        assert "Job" == docs[0]["kind"]
-        assert "run-airflow-migrations" == jmespath.search("spec.template.spec.containers[0].name", docs[0])
-        assert 50000 == jmespath.search("spec.template.spec.securityContext.runAsUser", docs[0])
+        assert docs[0]["kind"] == "Job"
+        assert jmespath.search("spec.template.spec.containers[0].name", docs[0]) == "run-airflow-migrations"
+        assert jmespath.search("spec.template.spec.securityContext.runAsUser", docs[0]) == 50000
 
     @pytest.mark.parametrize(
         "migrate_database_job_enabled,created",
@@ -55,10 +55,10 @@ class TestMigrateDatabaseJob:
         )
         annotations = jmespath.search("spec.template.metadata.annotations", docs[0])
         assert "foo" in annotations
-        assert "bar" == annotations["foo"]
+        assert annotations["foo"] == "bar"
         job_annotations = jmespath.search("metadata.annotations", docs[0])
         assert "fiz" in job_annotations
-        assert "fuz" == job_annotations["fiz"]
+        assert job_annotations["fiz"] == "fuz"
 
     def test_should_add_component_specific_labels(self):
         docs = render_chart(
@@ -119,22 +119,31 @@ class TestMigrateDatabaseJob:
             show_only=["templates/jobs/migrate-database-job.yaml"],
         )
 
-        assert "Job" == jmespath.search("kind", docs[0])
-        assert "foo" == jmespath.search(
-            "spec.template.spec.affinity.nodeAffinity."
-            "requiredDuringSchedulingIgnoredDuringExecution."
-            "nodeSelectorTerms[0]."
-            "matchExpressions[0]."
-            "key",
-            docs[0],
+        assert jmespath.search("kind", docs[0]) == "Job"
+        assert (
+            jmespath.search(
+                "spec.template.spec.affinity.nodeAffinity."
+                "requiredDuringSchedulingIgnoredDuringExecution."
+                "nodeSelectorTerms[0]."
+                "matchExpressions[0]."
+                "key",
+                docs[0],
+            )
+            == "foo"
         )
-        assert "ssd" == jmespath.search(
-            "spec.template.spec.nodeSelector.diskType",
-            docs[0],
+        assert (
+            jmespath.search(
+                "spec.template.spec.nodeSelector.diskType",
+                docs[0],
+            )
+            == "ssd"
         )
-        assert "dynamic-pods" == jmespath.search(
-            "spec.template.spec.tolerations[0].key",
-            docs[0],
+        assert (
+            jmespath.search(
+                "spec.template.spec.tolerations[0].key",
+                docs[0],
+            )
+            == "dynamic-pods"
         )
 
     def test_scheduler_name(self):
@@ -143,9 +152,12 @@ class TestMigrateDatabaseJob:
             show_only=["templates/jobs/migrate-database-job.yaml"],
         )
 
-        assert "airflow-scheduler" == jmespath.search(
-            "spec.template.spec.schedulerName",
-            docs[0],
+        assert (
+            jmespath.search(
+                "spec.template.spec.schedulerName",
+                docs[0],
+            )
+            == "airflow-scheduler"
         )
 
     @pytest.mark.parametrize(
@@ -178,17 +190,48 @@ class TestMigrateDatabaseJob:
             values={
                 "migrateDatabaseJob": {
                     "extraContainers": [
-                        {"name": "test-container", "image": "test-registry/test-repo:test-tag"}
+                        {"name": "{{ .Chart.Name }}", "image": "test-registry/test-repo:test-tag"}
                     ],
                 },
             },
             show_only=["templates/jobs/migrate-database-job.yaml"],
         )
 
-        assert {
-            "name": "test-container",
+        assert jmespath.search("spec.template.spec.containers[-1]", docs[0]) == {
+            "name": "airflow",
             "image": "test-registry/test-repo:test-tag",
-        } == jmespath.search("spec.template.spec.containers[-1]", docs[0])
+        }
+
+    def test_should_add_extra_init_containers(self):
+        docs = render_chart(
+            values={
+                "migrateDatabaseJob": {
+                    "extraInitContainers": [
+                        {"name": "{{ .Chart.Name }}", "image": "test-registry/test-repo:test-tag"}
+                    ],
+                },
+            },
+            show_only=["templates/jobs/migrate-database-job.yaml"],
+        )
+
+        assert jmespath.search("spec.template.spec.initContainers[0]", docs[0]) == {
+            "name": "airflow",
+            "image": "test-registry/test-repo:test-tag",
+        }
+
+    def test_should_template_extra_containers(self):
+        docs = render_chart(
+            values={
+                "migrateDatabaseJob": {
+                    "extraContainers": [{"name": "{{ .Release.Name }}-test-container"}],
+                },
+            },
+            show_only=["templates/jobs/migrate-database-job.yaml"],
+        )
+
+        assert jmespath.search("spec.template.spec.containers[-1]", docs[0]) == {
+            "name": "release-name-test-container"
+        }
 
     def test_set_resources(self):
         docs = render_chart(
@@ -209,7 +252,7 @@ class TestMigrateDatabaseJob:
             show_only=["templates/jobs/migrate-database-job.yaml"],
         )
 
-        assert {
+        assert jmespath.search("spec.template.spec.containers[0].resources", docs[0]) == {
             "requests": {
                 "cpu": "1000mi",
                 "memory": "512Mi",
@@ -218,7 +261,7 @@ class TestMigrateDatabaseJob:
                 "cpu": "1000mi",
                 "memory": "512Mi",
             },
-        } == jmespath.search("spec.template.spec.containers[0].resources", docs[0])
+        }
 
     def test_should_disable_default_helm_hooks(self):
         docs = render_chart(
@@ -247,9 +290,10 @@ class TestMigrateDatabaseJob:
             show_only=["templates/jobs/migrate-database-job.yaml"],
         )
 
-        assert {"name": "myvolume-airflow", "emptyDir": {}} == jmespath.search(
-            "spec.template.spec.volumes[-1]", docs[0]
-        )
+        assert jmespath.search("spec.template.spec.volumes[-1]", docs[0]) == {
+            "name": "myvolume-airflow",
+            "emptyDir": {},
+        }
 
     def test_should_add_extra_volume_mounts(self):
         docs = render_chart(
@@ -261,9 +305,10 @@ class TestMigrateDatabaseJob:
             show_only=["templates/jobs/migrate-database-job.yaml"],
         )
 
-        assert {"name": "foobar-airflow", "mountPath": "foo/bar"} == jmespath.search(
-            "spec.template.spec.containers[0].volumeMounts[-1]", docs[0]
-        )
+        assert jmespath.search("spec.template.spec.containers[0].volumeMounts[-1]", docs[0]) == {
+            "name": "foobar-airflow",
+            "mountPath": "foo/bar",
+        }
 
     def test_should_add_global_volume_and_global_volume_mount(self):
         docs = render_chart(
@@ -274,12 +319,14 @@ class TestMigrateDatabaseJob:
             show_only=["templates/jobs/migrate-database-job.yaml"],
         )
 
-        assert {"name": "myvolume", "emptyDir": {}} == jmespath.search(
-            "spec.template.spec.volumes[-1]", docs[0]
-        )
-        assert {"name": "foobar", "mountPath": "foo/bar"} == jmespath.search(
-            "spec.template.spec.containers[0].volumeMounts[-1]", docs[0]
-        )
+        assert jmespath.search("spec.template.spec.volumes[-1]", docs[0]) == {
+            "name": "myvolume",
+            "emptyDir": {},
+        }
+        assert jmespath.search("spec.template.spec.containers[0].volumeMounts[-1]", docs[0]) == {
+            "name": "foobar",
+            "mountPath": "foo/bar",
+        }
 
     def test_job_ttl_after_finished(self):
         docs = render_chart(
@@ -347,8 +394,8 @@ class TestMigrateDatabaseJob:
             show_only=["templates/jobs/migrate-database-job.yaml"],
         )
 
-        assert ["release-name"] == jmespath.search("spec.template.spec.containers[0].command", docs[0])
-        assert ["Helm"] == jmespath.search("spec.template.spec.containers[0].args", docs[0])
+        assert jmespath.search("spec.template.spec.containers[0].command", docs[0]) == ["release-name"]
+        assert jmespath.search("spec.template.spec.containers[0].args", docs[0]) == ["Helm"]
 
     def test_no_airflow_local_settings(self):
         docs = render_chart(
@@ -424,3 +471,15 @@ class TestMigrateDatabaseJobServiceAccount:
             show_only=["templates/jobs/migrate-database-job-serviceaccount.yaml"],
         )
         assert jmespath.search("automountServiceAccountToken", docs[0]) is False
+
+    def test_should_add_component_specific_env(self):
+        env = {"name": "test_env_key", "value": "test_env_value"}
+        docs = render_chart(
+            values={
+                "migrateDatabaseJob": {
+                    "env": [env],
+                },
+            },
+            show_only=["templates/jobs/migrate-database-job.yaml"],
+        )
+        assert env in jmespath.search("spec.template.spec.containers[0].env", docs[0])

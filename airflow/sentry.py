@@ -16,6 +16,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Sentry Integration."""
+
 from __future__ import annotations
 
 import logging
@@ -55,16 +56,13 @@ class DummySentry:
 Sentry: DummySentry = DummySentry()
 if conf.getboolean("sentry", "sentry_on", fallback=False):
     import sentry_sdk
-
-    # Verify blinker installation
-    from blinker import signal  # noqa: F401
     from sentry_sdk.integrations.flask import FlaskIntegration
     from sentry_sdk.integrations.logging import ignore_logger
 
     class ConfiguredSentry(DummySentry):
         """Configure Sentry SDK."""
 
-        SCOPE_DAG_RUN_TAGS = frozenset(("data_interval_end", "data_interval_start", "execution_date"))
+        SCOPE_DAG_RUN_TAGS = frozenset(("data_interval_end", "data_interval_start", "logical_date"))
         SCOPE_TASK_INSTANCE_TAGS = frozenset(("task_id", "dag_id", "try_number"))
         SCOPE_CRUMBS = frozenset(("task_id", "state", "operator", "duration"))
 
@@ -87,7 +85,7 @@ if conf.getboolean("sentry", "sentry_on", fallback=False):
             # LoggingIntegration is set by default.
             integrations = [sentry_flask]
 
-            executor_class, _ = ExecutorLoader.import_default_executor_cls(validate=False)
+            executor_class, _ = ExecutorLoader.import_default_executor_cls()
 
             if executor_class.supports_sentry:
                 from sentry_sdk.integrations.celery import CeleryIntegration

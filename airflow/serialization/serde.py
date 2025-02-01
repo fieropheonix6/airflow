@@ -24,7 +24,8 @@ import logging
 import sys
 from fnmatch import fnmatch
 from importlib import import_module
-from typing import TYPE_CHECKING, Any, Pattern, TypeVar, Union, cast
+from re import Pattern
+from typing import TYPE_CHECKING, Any, TypeVar, Union, cast
 
 import attr
 import re2
@@ -85,7 +86,8 @@ def decode(d: dict[str, Any]) -> tuple[str, int, Any]:
 
 
 def serialize(o: object, depth: int = 0) -> U | None:
-    """Serialize an object into a representation consisting only built-in types.
+    """
+    Serialize an object into a representation consisting only built-in types.
 
     Primitives (int, float, bool, str) are returned as-is. Built-in collections
     are iterated over, where it is assumed that keys in a dict can be represented
@@ -166,12 +168,6 @@ def serialize(o: object, depth: int = 0) -> U | None:
         dct[DATA] = data
         return dct
 
-    # pydantic models are recursive
-    if _is_pydantic(cls):
-        data = o.dict()  # type: ignore[attr-defined]
-        dct[DATA] = serialize(data, depth + 1)
-        return dct
-
     # dataclasses
     if dataclasses.is_dataclass(cls):
         # fixme: unfortunately using asdict with nested dataclasses it looses information
@@ -182,7 +178,7 @@ def serialize(o: object, depth: int = 0) -> U | None:
     # attr annotated
     if attr.has(cls):
         # Only include attributes which we can pass back to the classes constructor
-        data = attr.asdict(cast(attr.AttrsInstance, o), recurse=True, filter=lambda a, v: a.init)
+        data = attr.asdict(cast(attr.AttrsInstance, o), recurse=False, filter=lambda a, v: a.init)
         dct[DATA] = serialize(data, depth + 1)
         return dct
 
@@ -266,8 +262,8 @@ def deserialize(o: T | None, full=True, type_hint: Any = None) -> object:
     if hasattr(cls, "deserialize"):
         return getattr(cls, "deserialize")(deserialize(value), version)
 
-    # attr or dataclass or pydantic
-    if attr.has(cls) or dataclasses.is_dataclass(cls) or _is_pydantic(cls):
+    # attr or dataclass
+    if attr.has(cls) or dataclasses.is_dataclass(cls):
         class_version = getattr(cls, "__version__", 0)
         if int(version) > class_version:
             raise TypeError(
@@ -300,14 +296,14 @@ def _match(classname: str) -> bool:
     return _match_glob(classname) or _match_regexp(classname)
 
 
-@functools.lru_cache(maxsize=None)
+@functools.cache
 def _match_glob(classname: str):
     """Check if the given classname matches a pattern from allowed_deserialization_classes using glob syntax."""
     patterns = _get_patterns()
     return any(fnmatch(classname, p.pattern) for p in patterns)
 
 
-@functools.lru_cache(maxsize=None)
+@functools.cache
 def _match_regexp(classname: str):
     """Check if the given classname matches a pattern from allowed_deserialization_classes_regexp using regexp."""
     patterns = _get_regexp_patterns()
@@ -315,7 +311,8 @@ def _match_regexp(classname: str):
 
 
 def _stringify(classname: str, version: int, value: T | None) -> str:
-    """Convert a previously serialized object in a somewhat human-readable format.
+    """
+    Convert a previously serialized object in a somewhat human-readable format.
 
     This function is not designed to be exact, and will not extensively traverse
     the whole tree of an object.
@@ -336,17 +333,9 @@ def _stringify(classname: str, version: int, value: T | None) -> str:
     return s
 
 
-def _is_pydantic(cls: Any) -> bool:
-    """Return True if the class is a pydantic model.
-
-    Checking is done by attributes as it is significantly faster than
-    using isinstance.
-    """
-    return hasattr(cls, "model_config") and hasattr(cls, "model_fields") and hasattr(cls, "model_fields_set")
-
-
 def _is_namedtuple(cls: Any) -> bool:
-    """Return True if the class is a namedtuple.
+    """
+    Return True if the class is a namedtuple.
 
     Checking is done by attributes as it is significantly faster than
     using isinstance.
@@ -389,12 +378,12 @@ def _register():
     log.debug("loading serializers took %.3f seconds", timer.duration)
 
 
-@functools.lru_cache(maxsize=None)
+@functools.cache
 def _get_patterns() -> list[Pattern]:
     return [re2.compile(p) for p in conf.get("core", "allowed_deserialization_classes").split()]
 
 
-@functools.lru_cache(maxsize=None)
+@functools.cache
 def _get_regexp_patterns() -> list[Pattern]:
     return [re2.compile(p) for p in conf.get("core", "allowed_deserialization_classes_regexp").split()]
 

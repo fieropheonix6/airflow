@@ -29,19 +29,24 @@ from airflow_breeze.global_constants import (
     ALLOWED_MOUNT_OPTIONS,
     ALLOWED_MYSQL_VERSIONS,
     ALLOWED_POSTGRES_VERSIONS,
-    ALLOWED_PYDANTIC_VERSIONS,
     ALLOWED_PYTHON_MAJOR_MINOR_VERSIONS,
     ALLOWED_USE_AIRFLOW_VERSIONS,
     APACHE_AIRFLOW_GITHUB_REPOSITORY,
-    AUTOCOMPLETE_INTEGRATIONS,
+    AUTOCOMPLETE_ALL_INTEGRATIONS,
+    AUTOCOMPLETE_CORE_INTEGRATIONS,
+    AUTOCOMPLETE_PROVIDERS_INTEGRATIONS,
+    DEFAULT_UV_HTTP_TIMEOUT,
+    DOCKER_DEFAULT_PLATFORM,
+    SINGLE_PLATFORMS,
 )
 from airflow_breeze.utils.custom_param_types import (
     AnswerChoice,
+    BackendVersionChoice,
     BetterChoice,
     CacheableChoice,
     CacheableDefault,
     DryRunOption,
-    MySQLBackendVersionType,
+    MySQLBackendVersionChoice,
     NotVerifiedBetterChoice,
     UseAirflowVersionType,
     VerboseOption,
@@ -103,8 +108,9 @@ option_backend = click.option(
     type=CacheableChoice(ALLOWED_BACKENDS),
     default=CacheableDefault(value=ALLOWED_BACKENDS[0]),
     show_default=True,
-    help="Database backend to use. If 'none' is selected, breeze starts with invalid DB configuration "
-    "and no database and any attempts to connect to Airflow DB will fail.",
+    help="Database backend to use. If 'none' is chosen, "
+    "Breeze will start with an invalid database configuration, meaning there will be no database "
+    "available, and any attempts to connect to the Airflow database will fail.",
     envvar="BACKEND",
 )
 option_builder = click.option(
@@ -114,6 +120,12 @@ option_builder = click.option(
     show_default=True,
     default="autodetect",
 )
+option_clean_airflow_installation = click.option(
+    "--clean-airflow-installation",
+    help="Clean the airflow installation before installing version specified by --use-airflow-version.",
+    is_flag=True,
+    envvar="CLEAN_AIRFLOW_INSTALLATION",
+)
 option_commit_sha = click.option(
     "--commit-sha",
     show_default=True,
@@ -122,9 +134,11 @@ option_commit_sha = click.option(
 )
 option_db_reset = click.option(
     "-d",
-    "--db-reset",
+    "--db-reset/--no-db-reset",
     help="Reset DB when entering the container.",
     is_flag=True,
+    default=False,
+    show_default=True,
     envvar="DB_RESET",
 )
 option_debug_resources = click.option(
@@ -132,12 +146,6 @@ option_debug_resources = click.option(
     is_flag=True,
     help="Whether to show resource information while running in parallel.",
     envvar="DEBUG_RESOURCES",
-)
-option_database_isolation = click.option(
-    "--database-isolation",
-    help="Run airflow in database isolation mode.",
-    is_flag=True,
-    envvar="DATABASE_ISOLATION",
 )
 option_docker_host = click.option(
     "--docker-host",
@@ -170,6 +178,18 @@ option_dry_run = click.option(
 )
 option_forward_credentials = click.option(
     "-f", "--forward-credentials", help="Forward local credentials to container when running.", is_flag=True
+)
+option_excluded_providers = click.option(
+    "--excluded-providers",
+    help="JSON-string of dictionary containing excluded providers per python version ({'3.12': ['provider']})",
+    envvar="EXCLUDED_PROVIDERS",
+)
+option_force_lowest_dependencies = click.option(
+    "--force-lowest-dependencies",
+    help="Run tests for the lowest direct dependencies of Airflow or selected provider if "
+    "`Provider[PROVIDER_ID]` is used as test type.",
+    is_flag=True,
+    envvar="FORCE_LOWEST_DEPENDENCIES",
 )
 option_github_token = click.option(
     "--github-token",
@@ -210,21 +230,33 @@ option_include_success_outputs = click.option(
     is_flag=True,
     envvar="INCLUDE_SUCCESS_OUTPUTS",
 )
-option_integration = click.option(
+option_all_integration = click.option(
     "--integration",
-    help="Integration(s) to enable when running (can be more than one).",
-    type=BetterChoice(AUTOCOMPLETE_INTEGRATIONS),
+    help="Core Integrations to enable when running (can be more than one).",
+    type=BetterChoice(AUTOCOMPLETE_ALL_INTEGRATIONS),
+    multiple=True,
+)
+
+option_core_integration = click.option(
+    "--integration",
+    help="Core Integrations to enable when running (can be more than one).",
+    type=BetterChoice(AUTOCOMPLETE_CORE_INTEGRATIONS),
+    multiple=True,
+)
+option_providers_integration = click.option(
+    "--integration",
+    help="Providers Integration(s) to enable when running (can be more than one).",
+    type=BetterChoice(AUTOCOMPLETE_PROVIDERS_INTEGRATIONS),
     multiple=True,
 )
 option_image_name = click.option(
-    "-n", "--image-name", help="Name of the image to verify (overrides --python and --image-tag)."
+    "-n", "--image-name", help="Name of the image to verify (overrides --python)."
 )
-option_image_tag_for_running = click.option(
-    "--image-tag",
-    help="Tag of the image which is used to run the image (implies --mount-sources=skip).",
-    show_default=True,
-    default="latest",
-    envvar="IMAGE_TAG",
+option_keep_env_variables = click.option(
+    "--keep-env-variables",
+    help="Do not clear environment variables that might have side effect while running tests",
+    envvar="KEEP_ENV_VARIABLES",
+    is_flag=True,
 )
 option_max_time = click.option(
     "--max-time",
@@ -245,10 +277,15 @@ option_mysql_version = click.option(
     "-M",
     "--mysql-version",
     help="Version of MySQL used.",
-    type=MySQLBackendVersionType(ALLOWED_MYSQL_VERSIONS),
+    type=MySQLBackendVersionChoice(ALLOWED_MYSQL_VERSIONS),
     default=CacheableDefault(ALLOWED_MYSQL_VERSIONS[0]),
     envvar="MYSQL_VERSION",
     show_default=True,
+)
+option_no_db_cleanup = click.option(
+    "--no-db-cleanup",
+    help="Do not clear the database before each test module",
+    is_flag=True,
 )
 option_installation_package_format = click.option(
     "--package-format",
@@ -269,7 +306,7 @@ option_parallelism = click.option(
 option_postgres_version = click.option(
     "-P",
     "--postgres-version",
-    type=CacheableChoice(ALLOWED_POSTGRES_VERSIONS),
+    type=BackendVersionChoice(ALLOWED_POSTGRES_VERSIONS),
     default=CacheableDefault(ALLOWED_POSTGRES_VERSIONS[0]),
     envvar="POSTGRES_VERSION",
     show_default=True,
@@ -326,9 +363,11 @@ option_skip_db_tests = click.option(
     envvar="SKIP_DB_TESTS",
 )
 option_standalone_dag_processor = click.option(
-    "--standalone-dag-processor",
-    help="Run standalone dag processor for start-airflow.",
+    "--standalone-dag-processor/--no-standalone-dag-processor",
     is_flag=True,
+    default=True,
+    show_default=True,
+    help="Run standalone dag processor for start-airflow (required for Airflow 3).",
     envvar="STANDALONE_DAG_PROCESSOR",
 )
 option_upgrade_boto = click.option(
@@ -341,16 +380,25 @@ option_use_uv = click.option(
     "--use-uv/--no-use-uv",
     is_flag=True,
     default=True,
-    help="Use uv instead of pip as packaging tool.",
+    show_default=True,
+    help="Use uv instead of pip as packaging tool to build the image.",
     envvar="USE_UV",
 )
-option_pydantic = click.option(
-    "--pydantic",
-    help="Determines which pydantic should be used during tests.",
-    type=BetterChoice(ALLOWED_PYDANTIC_VERSIONS),
+option_use_uv_default_disabled = click.option(
+    "--use-uv/--no-use-uv",
+    is_flag=True,
+    default=False,
     show_default=True,
-    default=ALLOWED_PYDANTIC_VERSIONS[0],
-    envvar="PYDANTIC",
+    help="Use uv instead of pip as packaging tool to build the image.",
+    envvar="USE_UV",
+)
+option_uv_http_timeout = click.option(
+    "--uv-http-timeout",
+    help="Timeout for requests that UV makes (only used in case of UV builds).",
+    type=click.IntRange(min=1),
+    default=DEFAULT_UV_HTTP_TIMEOUT,
+    show_default=True,
+    envvar="UV_HTTP_TIMEOUT",
 )
 option_use_airflow_version = click.option(
     "--use-airflow-version",
@@ -359,6 +407,14 @@ option_use_airflow_version = click.option(
     "(https://pip.pypa.io/en/stable/topics/vcs-support/). Implies --mount-sources `remove`.",
     type=UseAirflowVersionType(ALLOWED_USE_AIRFLOW_VERSIONS),
     envvar="USE_AIRFLOW_VERSION",
+)
+option_airflow_version = click.option(
+    "-A",
+    "--airflow-version",
+    help="Airflow version to use for the command.",
+    type=str,
+    envvar="AIRFLOW_VERSION",
+    required=True,
 )
 option_verbose = click.option(
     "-v",
@@ -376,4 +432,11 @@ option_version_suffix_for_pypi = click.option(
     help="Version suffix used for PyPI packages (alpha, beta, rc1, etc.).",
     envvar="VERSION_SUFFIX_FOR_PYPI",
     default="",
+)
+option_platform_single = click.option(
+    "--platform",
+    help="Platform for Airflow image.",
+    default=DOCKER_DEFAULT_PLATFORM if not generating_command_images() else SINGLE_PLATFORMS[0],
+    envvar="PLATFORM",
+    type=BetterChoice(SINGLE_PLATFORMS),
 )

@@ -23,25 +23,29 @@ from unittest import mock
 import pytest
 
 from airflow.cli import cli_parser
-from airflow.cli.commands import celery_command
-from tests.test_utils.config import conf_vars
+from airflow.cli.commands.local_commands import celery_command
+from airflow.executors import executor_loader
+
+from tests_common.test_utils.config import conf_vars
 
 
 @pytest.mark.integration("celery")
-@pytest.mark.backend("mysql", "postgres")
+@pytest.mark.backend("postgres")
 class TestWorkerServeLogs:
     @classmethod
     def setup_class(cls):
         with conf_vars({("core", "executor"): "CeleryExecutor"}):
             # The cli_parser module is loaded during test collection. Reload it here with the
             # executor overridden so that we get the expected commands loaded.
+            reload(executor_loader)
             reload(cli_parser)
             cls.parser = cli_parser.get_parser()
 
     @conf_vars({("core", "executor"): "CeleryExecutor"})
     def test_serve_logs_on_worker_start(self):
-        with mock.patch("airflow.cli.commands.celery_command.Process") as mock_process, mock.patch(
-            "airflow.providers.celery.executors.celery_executor.app"
+        with (
+            mock.patch("airflow.cli.commands.local_commands.celery_command.Process") as mock_process,
+            mock.patch("airflow.providers.celery.executors.celery_executor.app"),
         ):
             args = self.parser.parse_args(["celery", "worker", "--concurrency", "1"])
 
@@ -52,8 +56,9 @@ class TestWorkerServeLogs:
 
     @conf_vars({("core", "executor"): "CeleryExecutor"})
     def test_skip_serve_logs_on_worker_start(self):
-        with mock.patch("airflow.cli.commands.celery_command.Process") as mock_popen, mock.patch(
-            "airflow.providers.celery.executors.celery_executor.app"
+        with (
+            mock.patch("airflow.cli.commands.local_commands.celery_command.Process") as mock_popen,
+            mock.patch("airflow.providers.celery.executors.celery_executor.app"),
         ):
             args = self.parser.parse_args(["celery", "worker", "--concurrency", "1", "--skip-serve-logs"])
 

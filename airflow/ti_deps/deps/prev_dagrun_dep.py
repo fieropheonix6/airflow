@@ -21,6 +21,7 @@ from typing import TYPE_CHECKING
 
 from sqlalchemy import func, or_, select
 
+from airflow.models.backfill import BackfillDagRun
 from airflow.models.dagrun import DagRun
 from airflow.models.taskinstance import PAST_DEPENDS_MET, TaskInstance as TI
 from airflow.ti_deps.deps.base_ti_dep import BaseTIDep
@@ -31,7 +32,7 @@ from airflow.utils.state import TaskInstanceState
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
 
-    from airflow.models.operator import Operator
+    from airflow.sdk.types import Operator
 
 _SUCCESSFUL_STATES = (TaskInstanceState.SKIPPED, TaskInstanceState.SUCCESS)
 
@@ -55,7 +56,8 @@ class PrevDagrunDep(BaseTIDep):
 
     @staticmethod
     def _has_tis(dagrun: DagRun, task_id: str, *, session: Session) -> bool:
-        """Check if a task has presence in the specified DAG run.
+        """
+        Check if a task has presence in the specified DAG run.
 
         This function exists for easy mocking in tests.
         """
@@ -68,20 +70,23 @@ class PrevDagrunDep(BaseTIDep):
 
     @staticmethod
     def _has_any_prior_tis(ti: TI, *, session: Session) -> bool:
-        """Check if a task has ever been run before.
+        """
+        Check if a task has ever been run before.
 
         This function exists for easy mocking in tests.
         """
-        return exists_query(
+        query = exists_query(
             TI.dag_id == ti.dag_id,
             TI.task_id == ti.task_id,
-            TI.execution_date < ti.execution_date,
+            TI.logical_date < ti.logical_date,
             session=session,
         )
+        return query
 
     @staticmethod
     def _count_unsuccessful_tis(dagrun: DagRun, task_id: str, *, session: Session) -> int:
-        """Get a count of unsuccessful task instances in a given run.
+        """
+        Get a count of unsuccessful task instances in a given run.
 
         Due to historical design considerations, "unsuccessful" here means the
         task instance is not in either SUCCESS or SKIPPED state. This means that
@@ -100,7 +105,8 @@ class PrevDagrunDep(BaseTIDep):
 
     @staticmethod
     def _has_unsuccessful_dependants(dagrun: DagRun, task: Operator, *, session: Session) -> bool:
-        """Check if any of the task's dependants are unsuccessful in a given run.
+        """
+        Check if any of the task's dependants are unsuccessful in a given run.
 
         Due to historical design considerations, "unsuccessful" here means the
         task instance is not in either SUCCESS or SKIPPED state. This means that
@@ -120,6 +126,8 @@ class PrevDagrunDep(BaseTIDep):
 
     @provide_session
     def _get_dep_statuses(self, ti: TI, session: Session, dep_context):
+        if TYPE_CHECKING:
+            assert ti.task
         if dep_context.ignore_depends_on_past:
             self._push_past_deps_met_xcom_if_needed(ti, dep_context)
             reason = "The context specified that the state of past DAGs could be ignored."
@@ -132,6 +140,17 @@ class PrevDagrunDep(BaseTIDep):
             return
 
         dr = ti.get_dagrun(session=session)
+        if dr.backfill_id:
+            sort_ordinal = session.scalar(
+                select(BackfillDagRun.sort_ordinal).where(
+                    BackfillDagRun.backfill_id == dr.backfill_id,
+                    BackfillDagRun.dag_run_id == dr.id,
+                )
+            )
+            if sort_ordinal == 1:
+                yield self._passing_status(reason="Task instance is first run in a backfill.")
+                return
+
         if not dr:
             self._push_past_deps_met_xcom_if_needed(ti, dep_context)
             yield self._passing_status(reason="This task instance does not belong to a DAG.")
@@ -143,7 +162,6 @@ class PrevDagrunDep(BaseTIDep):
             last_dagrun = DagRun.get_previous_scheduled_dagrun(dr.id, session)
         else:
             last_dagrun = DagRun.get_previous_dagrun(dr, session=session)
-
         # First ever run for this DAG.
         if not last_dagrun:
             self._push_past_deps_met_xcom_if_needed(ti, dep_context)
@@ -151,7 +169,7 @@ class PrevDagrunDep(BaseTIDep):
             return
 
         # There was a DAG run, but the task wasn't active back then.
-        if catchup and last_dagrun.execution_date < ti.task.start_date:
+        if catchup and last_dagrun.logical_date < ti.task.start_date:
             self._push_past_deps_met_xcom_if_needed(ti, dep_context)
             yield self._passing_status(reason="This task instance was the first task instance for its task.")
             return

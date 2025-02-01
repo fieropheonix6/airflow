@@ -17,7 +17,6 @@
 from __future__ import annotations
 
 import logging
-import warnings
 from functools import cached_property
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -26,14 +25,14 @@ from connexion import FlaskApi, ProblemException, Resolver
 from connexion.decorators.validation import RequestBodyValidator
 from connexion.exceptions import BadRequestProblem
 from flask import request
+from werkzeug import Request
 
 from airflow.api_connexion.exceptions import common_error_handler
+from airflow.api_fastapi.app import get_auth_manager
 from airflow.configuration import conf
-from airflow.exceptions import RemovedInAirflow3Warning
 from airflow.security import permissions
 from airflow.utils.yaml import safe_load
 from airflow.www.constants import SWAGGER_BUNDLE, SWAGGER_ENABLED
-from airflow.www.extensions.init_auth_manager import get_auth_manager
 
 if TYPE_CHECKING:
     from flask import Flask
@@ -106,9 +105,6 @@ def init_appbuilder_views(app):
         views.ConnectionModelView, permissions.RESOURCE_CONNECTION, category=permissions.RESOURCE_ADMIN_MENU
     )
     appbuilder.add_view(
-        views.SlaMissModelView, permissions.RESOURCE_SLA_MISS, category=permissions.RESOURCE_BROWSE_MENU
-    )
-    appbuilder.add_view(
         views.PluginView, permissions.RESOURCE_PLUGIN, category=permissions.RESOURCE_ADMIN_MENU
     )
     appbuilder.add_view(
@@ -137,15 +133,20 @@ def init_plugins(app):
     """Integrate Flask and FAB with plugins."""
     from airflow import plugins_manager
 
-    plugins_manager.initialize_web_ui_plugins()
+    plugins_manager.initialize_flask_plugins()
 
     appbuilder = app.appbuilder
 
     for view in plugins_manager.flask_appbuilder_views:
         name = view.get("name")
         if name:
+            filtered_view_kwargs = {k: v for k, v in view.items() if k not in ["view"]}
             log.debug("Adding view %s with menu", name)
-            appbuilder.add_view(view["view"], name, category=view["category"])
+            baseview = view.get("view")
+            if baseview:
+                appbuilder.add_view(baseview, **filtered_view_kwargs)
+            else:
+                log.error("'view' key is missing for the named view: %s", name)
         else:
             # if 'name' key is missing, intent is to add view without menu
             log.debug("Adding view %s without menu", str(type(view["view"])))
@@ -189,8 +190,24 @@ def set_cors_headers_on_response(response):
     return response
 
 
+def init_data_form_parameters():
+    """
+    Initialize custom values for data form parameters.
+
+    This is a workaround for Flask versions prior to 3.1.0.
+    In order to allow users customizing form data parameters, we need these two fields to be configurable.
+    Starting from Flask 3.1.0 these two parameters can be configured through Flask config, but unfortunately,
+    current version of flask supported in Airflow is way older. That's why this workaround was introduced.
+    See https://flask.palletsprojects.com/en/stable/api/#flask.Request.max_form_memory_size
+    # TODO: remove it when Flask upgraded to version 3.1.0 or higher.
+    """
+    Request.max_form_parts = conf.getint("webserver", "max_form_parts")
+    Request.max_form_memory_size = conf.getint("webserver", "max_form_memory_size")
+
+
 class _LazyResolution:
-    """OpenAPI endpoint that lazily resolves the function on first use.
+    """
+    OpenAPI endpoint that lazily resolves the function on first use.
 
     This is a stand-in replacement for ``connexion.Resolution`` that implements
     its public attributes ``function`` and ``operation_id``, but the function
@@ -207,7 +224,8 @@ class _LazyResolution:
 
 
 class _LazyResolver(Resolver):
-    """OpenAPI endpoint resolver that loads lazily on first use.
+    """
+    OpenAPI endpoint resolver that loads lazily on first use.
 
     This re-implements ``connexion.Resolver.resolve()`` to not eagerly resolve
     the endpoint function (and thus avoid importing it in the process), but only
@@ -221,7 +239,8 @@ class _LazyResolver(Resolver):
 
 
 class _CustomErrorRequestBodyValidator(RequestBodyValidator):
-    """Custom request body validator that overrides error messages.
+    """
+    Custom request body validator that overrides error messages.
 
     By default, Connextion emits a very generic *None is not of type 'object'*
     error when receiving an empty request body (with the view specifying the
@@ -278,6 +297,7 @@ def init_api_connexion(app: Flask) -> None:
         validate_responses=True,
         validator_map={"body": _CustomErrorRequestBodyValidator},
     ).blueprint
+    api_bp.before_app_request(init_data_form_parameters)
     api_bp.after_request(set_cors_headers_on_response)
 
     app.register_blueprint(api_bp)
@@ -304,23 +324,6 @@ def init_api_internal(app: Flask, standalone_api: bool = False) -> None:
     app.register_blueprint(api_bp)
     app.after_request_funcs.setdefault(api_bp.name, []).append(set_cors_headers_on_response)
     app.extensions["csrf"].exempt(api_bp)
-
-
-def init_api_experimental(app):
-    """Initialize Experimental API."""
-    if not conf.getboolean("api", "enable_experimental_api", fallback=False):
-        return
-    from airflow.www.api.experimental import endpoints
-
-    warnings.warn(
-        "The experimental REST API is deprecated. Please migrate to the stable REST API. "
-        "Please note that the experimental API do not have access control. "
-        "The authenticated user has full access.",
-        RemovedInAirflow3Warning,
-    )
-    base_paths.append("/api/experimental")
-    app.register_blueprint(endpoints.api_experimental, url_prefix="/api/experimental")
-    app.extensions["csrf"].exempt(endpoints.api_experimental)
 
 
 def init_api_auth_provider(app):

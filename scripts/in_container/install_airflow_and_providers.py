@@ -54,6 +54,19 @@ def find_airflow_package(extension: str) -> str | None:
     return airflow_package
 
 
+def find_airflow_task_sdk_package(extension: str) -> str | None:
+    packages = [f.as_posix() for f in DIST_FOLDER.glob(f"apache_airflow_task_sdk-[0-9]*.{extension}")]
+    if len(packages) > 1:
+        console.print(f"\n[red]Found multiple airflow task sdk packages: {packages}\n")
+        sys.exit(1)
+    airflow_task_sdk_package = packages[0] if packages else None
+    if airflow_task_sdk_package:
+        console.print(f"\n[bright_blue]Found airflow task_sdk package: {airflow_task_sdk_package}\n")
+    else:
+        console.print("\n[yellow]No airflow task_sdk package found.\n")
+    return airflow_task_sdk_package
+
+
 def find_provider_packages(extension: str, selected_providers: list[str]) -> list[str]:
     candidates = list(DIST_FOLDER.glob(f"apache_airflow_providers_*.{extension}"))
     console.print("\n[bright_blue]Found the following provider packages: ")
@@ -166,6 +179,8 @@ def get_providers_constraints_location(
 class InstallationSpec(NamedTuple):
     airflow_package: str | None
     airflow_constraints_location: str | None
+    airflow_task_sdk_package: str | None
+    airflow_task_sdk_constraints_location: str | None
     provider_packages: list[str]
     provider_constraints_location: str | None
 
@@ -234,17 +249,46 @@ def find_installation_spec(
                 )
             if airflow_extras:
                 airflow_package_spec += airflow_extras
-
+        # We always install latest task_sdk - it's independent from Airflow
+        airflow_task_sdk_spec = find_airflow_task_sdk_package(extension)
+        if airflow_task_sdk_spec:
+            airflow_task_sdk_constraints_location = get_airflow_constraints_location(
+                airflow_skip_constraints=airflow_skip_constraints,
+                airflow_constraints_mode=airflow_constraints_mode,
+                airflow_constraints_location=airflow_constraints_location,
+                airflow_constraints_reference=airflow_constraints_reference,
+                airflow_package_version="main",
+                default_constraints_branch=default_constraints_branch,
+                github_repository=github_repository,
+                python_version=python_version,
+            )
+        else:
+            airflow_task_sdk_constraints_location = None
+        airflow_task_sdk_package = airflow_task_sdk_spec
     elif use_airflow_version == "none" or use_airflow_version == "":
         console.print("\n[bright_blue]Skipping airflow package installation\n")
         airflow_package_spec = None
         airflow_constraints_location = None
+        airflow_task_sdk_package = None
+        airflow_task_sdk_constraints_location = None
     elif use_airflow_version.startswith(ALLOWED_VCS_PROTOCOLS):
         console.print(f"\nInstalling airflow from remote spec {use_airflow_version}\n")
         if airflow_extras:
             airflow_package_spec = f"apache-airflow{airflow_extras} @ {use_airflow_version}"
         else:
             airflow_package_spec = use_airflow_version
+        airflow_constraints_location = get_airflow_constraints_location(
+            airflow_skip_constraints=airflow_skip_constraints,
+            airflow_constraints_mode=airflow_constraints_mode,
+            airflow_constraints_location=airflow_constraints_location,
+            airflow_constraints_reference=airflow_constraints_reference,
+            airflow_package_version=use_airflow_version,
+            default_constraints_branch=default_constraints_branch,
+            github_repository=github_repository,
+            python_version=python_version,
+        )
+        console.print(f"\nInstalling airflow task_sdk from remote spec {use_airflow_version}\n")
+        airflow_task_sdk_package = f"apache-airflow-task-sdk @ {use_airflow_version}"
         airflow_constraints_location = get_airflow_constraints_location(
             airflow_skip_constraints=airflow_skip_constraints,
             airflow_constraints_mode=airflow_constraints_mode,
@@ -268,6 +312,12 @@ def find_installation_spec(
             github_repository=github_repository,
             python_version=python_version,
         )
+        console.print(
+            "\nDo not install airflow task_sdk. It should be installed automatically if needed "
+            "by providers."
+        )
+        airflow_task_sdk_package = None
+        airflow_task_sdk_constraints_location = None
     provider_package_list = []
     if use_packages_from_dist:
         selected_providers_list = install_selected_providers.split(",") if install_selected_providers else []
@@ -279,6 +329,8 @@ def find_installation_spec(
     return InstallationSpec(
         airflow_package=airflow_package_spec,
         airflow_constraints_location=airflow_constraints_location,
+        airflow_task_sdk_package=airflow_task_sdk_package,
+        airflow_task_sdk_constraints_location=airflow_task_sdk_constraints_location,
         provider_packages=provider_package_list,
         provider_constraints_location=get_providers_constraints_location(
             providers_constraints_mode=providers_constraints_mode,
@@ -294,6 +346,7 @@ def find_installation_spec(
 
 ALLOWED_PACKAGE_FORMAT = ["wheel", "sdist", "both"]
 ALLOWED_CONSTRAINTS_MODE = ["constraints-source-providers", "constraints", "constraints-no-providers"]
+ALLOWED_MOUNT_SOURCES = ["remove", "tests", "providers-and-tests"]
 
 
 @click.command()
@@ -401,7 +454,7 @@ ALLOWED_CONSTRAINTS_MODE = ["constraints-source-providers", "constraints", "cons
 )
 @click.option(
     "--python-version",
-    default="3.8",
+    default="3.9",
     envvar="PYTHON_MAJOR_MINOR_VERSION",
     show_default=True,
     help="Python version to use",
@@ -422,6 +475,13 @@ ALLOWED_CONSTRAINTS_MODE = ["constraints-source-providers", "constraints", "cons
     help="Should install packages from dist folder if set.",
 )
 @click.option(
+    "--mount-sources",
+    type=click.Choice(ALLOWED_MOUNT_SOURCES),
+    required=True,
+    envvar="MOUNT_SOURCES",
+    help="What sources are mounted .",
+)
+@click.option(
     "--install-airflow-with-constraints",
     is_flag=True,
     default=False,
@@ -439,6 +499,7 @@ def install_airflow_and_providers(
     github_actions: bool,
     github_repository: str,
     install_selected_providers: str,
+    mount_sources: str,
     package_format: str,
     providers_constraints_mode: str,
     providers_constraints_location: str,
@@ -469,37 +530,145 @@ def install_airflow_and_providers(
         use_packages_from_dist=use_packages_from_dist,
     )
     if installation_spec.airflow_package and install_airflow_with_constraints:
-        install_airflow_cmd = [
+        base_install_airflow_cmd = [
+            "/usr/local/bin/uv",
             "pip",
             "install",
-            "--root-user-action",
-            "ignore",
+            "--python",
+            "/usr/local/bin/python",
             installation_spec.airflow_package,
         ]
+        install_airflow_cmd = base_install_airflow_cmd.copy()
         console.print(f"\n[bright_blue]Installing airflow package: {installation_spec.airflow_package}")
         if installation_spec.airflow_constraints_location:
             console.print(f"[bright_blue]Use constraints: {installation_spec.airflow_constraints_location}")
             install_airflow_cmd.extend(["--constraint", installation_spec.airflow_constraints_location])
         console.print()
-        run_command(install_airflow_cmd, github_actions=github_actions, check=True)
+        result = run_command(install_airflow_cmd, github_actions=github_actions, check=False)
+        if result.returncode != 0:
+            console.print(
+                "[warning]Installation with constraints failed - might be because pre-installed provider"
+                " has conflicting dependencies in PyPI. Falling back to a non-constraint installation."
+            )
+            run_command(base_install_airflow_cmd, github_actions=github_actions, check=True)
+        if installation_spec.airflow_task_sdk_package:
+            base_install_airflow_task_sdk_cmd = base_install_airflow_cmd.copy()
+            base_install_airflow_task_sdk_cmd[-1] = installation_spec.airflow_task_sdk_package
+            console.print(
+                f"\n[bright_blue]Installing airflow task sdk package: "
+                f"{installation_spec.airflow_task_sdk_package}"
+            )
+            # if airflow is also being installed we should add airflow to the base_install_providers_cmd
+            # to avoid accidentally upgrading airflow to a version that is different than installed in the
+            # previous step
+            if installation_spec.airflow_package:
+                base_install_airflow_task_sdk_cmd.append(installation_spec.airflow_package)
+            install_airflow_task_sdk_cmd = base_install_airflow_task_sdk_cmd.copy()
+            if installation_spec.airflow_task_sdk_constraints_location:
+                console.print(
+                    f"[bright_blue]Use constraints: {installation_spec.airflow_task_sdk_constraints_location}"
+                )
+                install_airflow_task_sdk_cmd.extend(
+                    ["--constraint", installation_spec.airflow_task_sdk_constraints_location]
+                )
+            console.print()
+            run_command(install_airflow_task_sdk_cmd, github_actions=github_actions, check=True)
+            if result.returncode != 0:
+                console.print(
+                    "[warning]Installation with constraints failed - might be because there are"
+                    " conflicting dependencies in PyPI. Falling back to a non-constraint installation."
+                )
+                run_command(base_install_airflow_cmd, github_actions=github_actions, check=True)
     if installation_spec.provider_packages or not install_airflow_with_constraints:
-        install_providers_cmd = ["pip", "install", "--root-user-action", "ignore"]
+        base_install_providers_cmd = [
+            "/usr/local/bin/uv",
+            "pip",
+            "install",
+            "--python",
+            "/usr/local/bin/python",
+        ]
         if not install_airflow_with_constraints and installation_spec.airflow_package:
-            install_providers_cmd.append(installation_spec.airflow_package)
+            base_install_providers_cmd.append(installation_spec.airflow_package)
+            if installation_spec.airflow_task_sdk_package:
+                base_install_providers_cmd.append(installation_spec.airflow_task_sdk_package)
         console.print("\n[bright_blue]Installing provider packages:")
         for provider_package in sorted(installation_spec.provider_packages):
             console.print(f"  {provider_package}")
         console.print()
         for provider_package in installation_spec.provider_packages:
-            install_providers_cmd.append(provider_package)
+            base_install_providers_cmd.append(provider_package)
+        install_providers_command = base_install_providers_cmd.copy()
+        # if airflow is also being installed we should add airflow to the base_install_providers_cmd
+        # to avoid accidentally upgrading airflow to a version that is different than installed in the
+        # previous step
+        if installation_spec.airflow_package:
+            base_install_providers_cmd.append(installation_spec.airflow_package)
         if installation_spec.provider_constraints_location:
             console.print(
                 f"[bright_blue]with constraints: {installation_spec.provider_constraints_location}\n"
             )
-            install_providers_cmd.extend(["--constraint", installation_spec.provider_constraints_location])
-        console.print()
-        run_command(install_providers_cmd, github_actions=github_actions, check=True)
-    console.print("[green]Done!")
+            install_providers_command.extend(
+                ["--constraint", installation_spec.provider_constraints_location]
+            )
+            console.print()
+            result = run_command(install_providers_command, github_actions=github_actions, check=False)
+            if result.returncode != 0:
+                console.print(
+                    "[warning]Installation with constraints failed - might be because pre-installed provider"
+                    " has conflicting dependencies in PyPI. Falling back to a non-constraint installation."
+                )
+                run_command(base_install_providers_cmd, github_actions=github_actions, check=True)
+        else:
+            run_command(base_install_providers_cmd, github_actions=github_actions, check=True)
+    if mount_sources in ["tests", "remove"]:
+        console.print("[bright_blue]Uninstall editable packages installed in CI image")
+        command = ["pip freeze | grep  '#' | sed s'/.*(//'| sed 's/==.*//' | xargs pip uninstall -y"]
+        run_command(
+            command,
+            github_actions=github_actions,
+            shell=True,
+            check=False,
+        )
+    if mount_sources == "providers-and-tests":
+        if (
+            use_airflow_version
+            and use_airflow_version.startswith("2")
+            or use_airflow_version in ["wheel", "sdist"]
+        ):
+            command = [
+                "pip freeze | grep apache-airflow-providers | grep -v '#' | "
+                "grep -v apache-airflow-providers-fab | xargs pip uninstall -y "
+            ]
+            console.print("[bright_blue]Removing installed providers except FAB")
+        else:
+            command = ["pip freeze | grep apache-airflow-providers | grep -v '#' | xargs pip uninstall -y "]
+            console.print("[bright_blue]Removing installed providers")
+        run_command(
+            command,
+            github_actions=github_actions,
+            shell=True,
+            check=False,
+        )
+        import importlib.util
+
+        spec = importlib.util.find_spec("airflow")
+        if spec is None or spec.origin is None:
+            console.print("[red]Airflow not found - cannot mount sources")
+            sys.exit(1)
+        console.print(
+            "[blue]Modifying installed airflow's providers __init__.py "
+            "in order to load providers from separate packages."
+        )
+        airflow_path = Path(spec.origin).parent
+        # Make sure old Airflow will include providers including common subfolder allow to extend loading
+        # providers from the installed separate source packages
+        airflow_providers_init_py = airflow_path / "providers" / "__init__.py"
+        airflow_providers_common_init_py = airflow_path / "providers" / "common" / "__init__.py"
+        init_content = '__path__ = __import__("pkgutil").extend_path(__path__, __name__) # type: ignore'
+        airflow_providers_init_py.write_text(init_content)
+        airflow_providers_common_init_py.write_text(init_content)
+
+    console.print("\n[green]Done!")
 
 
 if __name__ == "__main__":

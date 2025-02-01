@@ -16,26 +16,24 @@
 # under the License.
 from __future__ import annotations
 
-import warnings
 from functools import wraps
-from typing import TYPE_CHECKING, Callable, Sequence, TypeVar, cast
+from typing import TYPE_CHECKING, Callable, TypeVar, cast
 
-from flask import Response, g
+from flask import Response
 
 from airflow.api_connexion.exceptions import PermissionDenied, Unauthenticated
+from airflow.api_fastapi.app import get_auth_manager
 from airflow.auth.managers.models.resource_details import (
     AccessView,
+    AssetDetails,
     ConfigurationDetails,
     ConnectionDetails,
     DagAccessEntity,
     DagDetails,
-    DatasetDetails,
     PoolDetails,
     VariableDetails,
 )
-from airflow.exceptions import RemovedInAirflow3Warning
 from airflow.utils.airflow_flask_app import get_airflow_app
-from airflow.www.extensions.init_auth_manager import get_auth_manager
 
 if TYPE_CHECKING:
     from airflow.auth.managers.base_auth_manager import ResourceMethod
@@ -49,30 +47,10 @@ def check_authentication() -> None:
         response = auth.requires_authentication(Response)()
         if response.status_code == 200:
             return
+
     # since this handler only checks authentication, not authorization,
     # we should always return 401
     raise Unauthenticated(headers=response.headers)
-
-
-def requires_access(permissions: Sequence[tuple[str, str]] | None = None) -> Callable[[T], T]:
-    """
-    Check current user's permissions against required permissions.
-
-    Deprecated. Do not use this decorator, use one of the decorator `has_access_*` defined in
-    airflow/api_connexion/security.py instead.
-    This decorator will only work with FAB authentication and not with other auth providers.
-
-    This decorator might be used in user plugins, do not remove it.
-    """
-    warnings.warn(
-        "The 'requires_access' decorator is deprecated. Please use one of the decorator `requires_access_*`"
-        "defined in airflow/api_connexion/security.py instead.",
-        RemovedInAirflow3Warning,
-        stacklevel=2,
-    )
-    from airflow.providers.fab.auth_manager.decorators.auth import _requires_access_fab
-
-    return _requires_access_fab(permissions)
 
 
 def _requires_access(*, is_authorized_callback: Callable[[], bool], func: Callable, args, kwargs) -> bool:
@@ -100,7 +78,9 @@ def requires_access_configuration(method: ResourceMethod) -> Callable[[T], T]:
             section: str | None = kwargs.get("section")
             return _requires_access(
                 is_authorized_callback=lambda: get_auth_manager().is_authorized_configuration(
-                    method=method, details=ConfigurationDetails(section=section)
+                    method=method,
+                    details=ConfigurationDetails(section=section),
+                    user=get_auth_manager().get_user(),
                 ),
                 func=func,
                 args=args,
@@ -119,7 +99,9 @@ def requires_access_connection(method: ResourceMethod) -> Callable[[T], T]:
             connection_id: str | None = kwargs.get("connection_id")
             return _requires_access(
                 is_authorized_callback=lambda: get_auth_manager().is_authorized_connection(
-                    method=method, details=ConnectionDetails(conn_id=connection_id)
+                    method=method,
+                    details=ConnectionDetails(conn_id=connection_id),
+                    user=get_auth_manager().get_user(),
                 ),
                 func=func,
                 args=args,
@@ -135,25 +117,35 @@ def requires_access_dag(
     method: ResourceMethod, access_entity: DagAccessEntity | None = None
 ) -> Callable[[T], T]:
     def _is_authorized_callback(dag_id: str):
-        def callback():
-            access = get_auth_manager().is_authorized_dag(
-                method=method,
-                access_entity=access_entity,
-                details=DagDetails(id=dag_id),
-            )
+        def callback() -> bool | DagAccessEntity:
+            if dag_id:
+                # a DAG id is provided; is the user authorized to access this DAG?
+                return get_auth_manager().is_authorized_dag(
+                    method=method,
+                    access_entity=access_entity,
+                    details=DagDetails(id=dag_id),
+                    user=get_auth_manager().get_user(),
+                )
+            else:
+                # here we know dag_id is not provided.
+                # check is the user authorized to access all DAGs?
+                if get_auth_manager().is_authorized_dag(
+                    method=method,
+                    access_entity=access_entity,
+                    user=get_auth_manager().get_user(),
+                ):
+                    return True
+                elif access_entity:
+                    # no dag_id provided, and user does not have access to all dags
+                    return False
 
-            # ``access`` means here:
-            # - if a DAG id is provided (``dag_id`` not None): is the user authorized to access this DAG
-            # - if no DAG id is provided: is the user authorized to access all DAGs
-            if dag_id or access or access_entity:
-                return access
-
-            # No DAG id is provided, the user is not authorized to access all DAGs and authorization is done
-            # on DAG level
-            # If method is "GET", return whether the user has read access to any DAGs
-            # If method is "PUT", return whether the user has edit access to any DAGs
-            return (method == "GET" and any(get_auth_manager().get_permitted_dag_ids(methods=["GET"]))) or (
-                method == "PUT" and any(get_auth_manager().get_permitted_dag_ids(methods=["PUT"]))
+            # dag_id is not provided, and the user is not authorized to access *all* DAGs
+            # so we check that the user can access at least *one* dag
+            # but we leave it to the endpoint function to properly restrict access beyond that
+            if method not in ("GET", "PUT"):
+                return False
+            return any(
+                get_auth_manager().get_permitted_dag_ids(user=get_auth_manager().get_user(), methods=[method])
             )
 
         return callback
@@ -174,14 +166,16 @@ def requires_access_dag(
     return requires_access_decorator
 
 
-def requires_access_dataset(method: ResourceMethod) -> Callable[[T], T]:
+def requires_access_asset(method: ResourceMethod) -> Callable[[T], T]:
     def requires_access_decorator(func: T):
         @wraps(func)
         def decorated(*args, **kwargs):
             uri: str | None = kwargs.get("uri")
             return _requires_access(
-                is_authorized_callback=lambda: get_auth_manager().is_authorized_dataset(
-                    method=method, details=DatasetDetails(uri=uri)
+                is_authorized_callback=lambda: get_auth_manager().is_authorized_asset(
+                    method=method,
+                    details=AssetDetails(uri=uri),
+                    user=get_auth_manager().get_user(),
                 ),
                 func=func,
                 args=args,
@@ -200,7 +194,9 @@ def requires_access_pool(method: ResourceMethod) -> Callable[[T], T]:
             pool_name: str | None = kwargs.get("pool_name")
             return _requires_access(
                 is_authorized_callback=lambda: get_auth_manager().is_authorized_pool(
-                    method=method, details=PoolDetails(name=pool_name)
+                    method=method,
+                    details=PoolDetails(name=pool_name),
+                    user=get_auth_manager().get_user(),
                 ),
                 func=func,
                 args=args,
@@ -219,7 +215,9 @@ def requires_access_variable(method: ResourceMethod) -> Callable[[T], T]:
             variable_key: str | None = kwargs.get("variable_key")
             return _requires_access(
                 is_authorized_callback=lambda: get_auth_manager().is_authorized_variable(
-                    method=method, details=VariableDetails(key=variable_key)
+                    method=method,
+                    details=VariableDetails(key=variable_key),
+                    user=get_auth_manager().get_user(),
                 ),
                 func=func,
                 args=args,
@@ -236,7 +234,9 @@ def requires_access_view(access_view: AccessView) -> Callable[[T], T]:
         @wraps(func)
         def decorated(*args, **kwargs):
             return _requires_access(
-                is_authorized_callback=lambda: get_auth_manager().is_authorized_view(access_view=access_view),
+                is_authorized_callback=lambda: get_auth_manager().is_authorized_view(
+                    access_view=access_view, user=get_auth_manager().get_user()
+                ),
                 func=func,
                 args=args,
                 kwargs=kwargs,
@@ -248,15 +248,17 @@ def requires_access_view(access_view: AccessView) -> Callable[[T], T]:
 
 
 def requires_access_custom_view(
-    fab_action_name: str,
-    fab_resource_name: str,
+    method: ResourceMethod,
+    resource_name: str,
 ) -> Callable[[T], T]:
     def requires_access_decorator(func: T):
         @wraps(func)
         def decorated(*args, **kwargs):
             return _requires_access(
                 is_authorized_callback=lambda: get_auth_manager().is_authorized_custom_view(
-                    fab_action_name=fab_action_name, fab_resource_name=fab_resource_name
+                    method=method,
+                    resource_name=resource_name,
+                    user=get_auth_manager().get_user(),
                 ),
                 func=func,
                 args=args,
@@ -269,4 +271,4 @@ def requires_access_custom_view(
 
 
 def get_readable_dags() -> set[str]:
-    return get_auth_manager().get_permitted_dag_ids(user=g.user)
+    return get_auth_manager().get_permitted_dag_ids(user=get_auth_manager().get_user())

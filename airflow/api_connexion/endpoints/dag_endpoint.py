@@ -16,11 +16,12 @@
 # under the License.
 from __future__ import annotations
 
+from collections.abc import Collection
 from http import HTTPStatus
-from typing import TYPE_CHECKING, Collection
+from typing import TYPE_CHECKING
 
 from connexion import NoContent
-from flask import g, request
+from flask import request
 from marshmallow import ValidationError
 from sqlalchemy import select, update
 from sqlalchemy.sql.expression import or_
@@ -36,12 +37,14 @@ from airflow.api_connexion.schemas.dag_schema import (
     dag_schema,
     dags_collection_schema,
 )
+from airflow.api_fastapi.app import get_auth_manager
 from airflow.exceptions import AirflowException, DagNotFound
 from airflow.models.dag import DagModel, DagTag
 from airflow.utils.airflow_flask_app import get_airflow_app
+from airflow.utils.api_migration import mark_fastapi_migration_done
 from airflow.utils.db import get_query_count
 from airflow.utils.session import NEW_SESSION, provide_session
-from airflow.www.extensions.init_auth_manager import get_auth_manager
+from airflow.www.decorators import action_logging
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
@@ -50,6 +53,7 @@ if TYPE_CHECKING:
     from airflow.api_connexion.types import APIResponse, UpdateMask
 
 
+@mark_fastapi_migration_done
 @security.requires_access_dag("GET")
 @provide_session
 def get_dag(
@@ -68,6 +72,7 @@ def get_dag(
     )
 
 
+@mark_fastapi_migration_done
 @security.requires_access_dag("GET")
 @provide_session
 def get_dag_details(
@@ -88,6 +93,7 @@ def get_dag_details(
     return dag_detail_schema.dump(dag_model)
 
 
+@mark_fastapi_migration_done
 @security.requires_access_dag("GET")
 @format_parameters({"limit": check_limit})
 @provide_session
@@ -105,7 +111,7 @@ def get_dags(
 ) -> APIResponse:
     """Get all DAGs."""
     allowed_attrs = ["dag_id"]
-    dags_query = select(DagModel).where(~DagModel.is_subdag)
+    dags_query = select(DagModel)
     if only_active:
         dags_query = dags_query.where(DagModel.is_active)
     if paused is not None:
@@ -116,7 +122,7 @@ def get_dags(
     if dag_id_pattern:
         dags_query = dags_query.where(DagModel.dag_id.ilike(f"%{dag_id_pattern}%"))
 
-    readable_dags = get_auth_manager().get_permitted_dag_ids(user=g.user)
+    readable_dags = get_auth_manager().get_permitted_dag_ids(user=get_auth_manager().get_user())
 
     dags_query = dags_query.where(DagModel.dag_id.in_(readable_dags))
     if tags:
@@ -129,7 +135,7 @@ def get_dags(
 
     try:
         dags_collection_schema = (
-            DAGCollectionSchema(only=[f"dags.{field}" for field in fields])
+            DAGCollectionSchema(only=[f"dags.{field}" for field in fields] + ["total_entries"])
             if fields
             else DAGCollectionSchema()
         )
@@ -138,7 +144,9 @@ def get_dags(
         raise BadRequest("DAGCollectionSchema error", detail=str(e))
 
 
+@mark_fastapi_migration_done
 @security.requires_access_dag("PUT")
+@action_logging
 @provide_session
 def patch_dag(*, dag_id: str, update_mask: UpdateMask = None, session: Session = NEW_SESSION) -> APIResponse:
     """Update the specific DAG."""
@@ -160,8 +168,10 @@ def patch_dag(*, dag_id: str, update_mask: UpdateMask = None, session: Session =
     return dag_schema.dump(dag)
 
 
+@mark_fastapi_migration_done
 @security.requires_access_dag("PUT")
 @format_parameters({"limit": check_limit})
+@action_logging
 @provide_session
 def patch_dags(limit, session, offset=0, only_active=True, tags=None, dag_id_pattern=None, update_mask=None):
     """Patch multiple DAGs."""
@@ -176,15 +186,16 @@ def patch_dags(limit, session, offset=0, only_active=True, tags=None, dag_id_pat
         update_mask = update_mask[0]
         patch_body_[update_mask] = patch_body[update_mask]
         patch_body = patch_body_
+    dags_query = select(DagModel)
     if only_active:
-        dags_query = select(DagModel).where(~DagModel.is_subdag, DagModel.is_active)
-    else:
-        dags_query = select(DagModel).where(~DagModel.is_subdag)
+        dags_query = dags_query.where(DagModel.is_active)
 
     if dag_id_pattern == "~":
         dag_id_pattern = "%"
     dags_query = dags_query.where(DagModel.dag_id.ilike(f"%{dag_id_pattern}%"))
-    editable_dags = get_auth_manager().get_permitted_dag_ids(methods=["PUT"], user=g.user)
+    editable_dags = get_auth_manager().get_permitted_dag_ids(
+        methods=["PUT"], user=get_auth_manager().get_user()
+    )
 
     dags_query = dags_query.where(DagModel.dag_id.in_(editable_dags))
     if tags:
@@ -208,7 +219,9 @@ def patch_dags(limit, session, offset=0, only_active=True, tags=None, dag_id_pat
     return dags_collection_schema.dump(DAGCollection(dags=dags, total_entries=total_entries))
 
 
+@mark_fastapi_migration_done
 @security.requires_access_dag("DELETE")
+@action_logging
 @provide_session
 def delete_dag(dag_id: str, session: Session = NEW_SESSION) -> APIResponse:
     """Delete the specific DAG."""

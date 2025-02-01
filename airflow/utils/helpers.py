@@ -21,23 +21,22 @@ import copy
 import itertools
 import re
 import signal
-import warnings
+from collections.abc import Generator, Iterable, Mapping, MutableMapping
 from datetime import datetime
-from functools import reduce
-from typing import TYPE_CHECKING, Any, Callable, Generator, Iterable, Mapping, MutableMapping, TypeVar, cast
+from functools import cache, reduce
+from typing import TYPE_CHECKING, Any, Callable, TypeVar, cast
 
 from lazy_object_proxy import Proxy
 
 from airflow.configuration import conf
-from airflow.exceptions import AirflowException, RemovedInAirflow3Warning
-from airflow.utils.module_loading import import_string
+from airflow.exceptions import AirflowException
 from airflow.utils.types import NOTSET
 
 if TYPE_CHECKING:
     import jinja2
 
     from airflow.models.taskinstance import TaskInstance
-    from airflow.utils.context import Context
+    from airflow.sdk.definitions.context import Context
 
 KEY_REGEX = re.compile(r"^[\w.-]+$")
 GROUP_KEY_REGEX = re.compile(r"^[\w-]+$")
@@ -52,12 +51,23 @@ def validate_key(k: str, max_length: int = 250):
     if not isinstance(k, str):
         raise TypeError(f"The key has to be a string and is {type(k)}:{k}")
     if len(k) > max_length:
-        raise AirflowException(f"The key has to be less than {max_length} characters")
+        raise AirflowException(f"The key: {k} has to be less than {max_length} characters")
     if not KEY_REGEX.match(k):
         raise AirflowException(
             f"The key {k!r} has to be made of alphanumeric characters, dashes, "
             f"dots and underscores exclusively"
         )
+
+
+def validate_instance_args(instance: object, expected_arg_types: dict[str, Any]) -> None:
+    """Validate that the instance has the expected types for the arguments."""
+    for arg_name, expected_arg_type in expected_arg_types.items():
+        instance_arg_value = getattr(instance, arg_name, None)
+        if instance_arg_value is not None and not isinstance(instance_arg_value, expected_arg_type):
+            raise TypeError(
+                f"'{arg_name}' has an invalid type {type(instance_arg_value)} with value "
+                f"{instance_arg_value}, expected type is {expected_arg_type}"
+            )
 
 
 def validate_group_key(k: str, max_length: int = 200):
@@ -161,7 +171,7 @@ def as_flattened_list(iterable: Iterable[Iterable[T]]) -> list[T]:
     return [e for i in iterable for e in i]
 
 
-def parse_template_string(template_string: str) -> tuple[str | None, jinja2.Template | None]:
+def parse_template_string(template_string: str) -> tuple[str, None] | tuple[None, jinja2.Template]:
     """Parse Jinja template string."""
     import jinja2
 
@@ -169,6 +179,27 @@ def parse_template_string(template_string: str) -> tuple[str | None, jinja2.Temp
         return None, jinja2.Template(template_string)
     else:
         return template_string, None
+
+
+@cache
+def log_filename_template_renderer() -> Callable[..., str]:
+    template = conf.get("logging", "log_filename_template")
+
+    if "{{" in template:
+        import jinja2
+
+        return jinja2.Template(template).render
+    else:
+
+        def f_str_format(ti: TaskInstance, try_number: int | None = None):
+            return template.format(
+                dag_id=ti.dag_id,
+                task_id=ti.task_id,
+                logical_date=ti.logical_date.isoformat(),
+                try_number=try_number or ti.try_number,
+            )
+
+        return f_str_format
 
 
 def render_log_filename(ti: TaskInstance, try_number, filename_template) -> str:
@@ -189,7 +220,7 @@ def render_log_filename(ti: TaskInstance, try_number, filename_template) -> str:
     return filename_template.format(
         dag_id=ti.dag_id,
         task_id=ti.task_id,
-        execution_date=ti.execution_date.isoformat(),
+        logical_date=ti.logical_date.isoformat(),
         try_number=try_number,
     )
 
@@ -220,32 +251,12 @@ def partition(pred: Callable[[T], bool], iterable: Iterable[T]) -> tuple[Iterabl
     return itertools.filterfalse(pred, iter_1), filter(pred, iter_2)
 
 
-def chain(*args, **kwargs):
-    """Use `airflow.models.baseoperator.chain`, this function is deprecated."""
-    warnings.warn(
-        "This function is deprecated. Please use `airflow.models.baseoperator.chain`.",
-        RemovedInAirflow3Warning,
-        stacklevel=2,
-    )
-    return import_string("airflow.models.baseoperator.chain")(*args, **kwargs)
-
-
-def cross_downstream(*args, **kwargs):
-    """Use `airflow.models.baseoperator.cross_downstream`, this function is deprecated."""
-    warnings.warn(
-        "This function is deprecated. Please use `airflow.models.baseoperator.cross_downstream`.",
-        RemovedInAirflow3Warning,
-        stacklevel=2,
-    )
-    return import_string("airflow.models.baseoperator.cross_downstream")(*args, **kwargs)
-
-
 def build_airflow_url_with_query(query: dict[str, Any]) -> str:
     """
     Build airflow url using base_url and default_view and provided query.
 
     For example:
-    http://0.0.0.0:8000/base/graph?dag_id=my-task&root=&execution_date=2020-10-27T10%3A59%3A25.615587
+    http://0.0.0.0:8000/base/graph?dag_id=my-task&root=&logical_date=2020-10-27T10%3A59%3A25.615587
     """
     import flask
 
@@ -256,7 +267,8 @@ def build_airflow_url_with_query(query: dict[str, Any]) -> str:
 # The 'template' argument is typed as Any because the jinja2.Template is too
 # dynamic to be effectively type-checked.
 def render_template(template: Any, context: MutableMapping[str, Any], *, native: bool) -> Any:
-    """Render a Jinja2 template with given Airflow context.
+    """
+    Render a Jinja2 template with given Airflow context.
 
     The default implementation of ``jinja2.Template.render()`` converts the
     input context into dict eagerly many times, which triggers deprecation
@@ -370,7 +382,8 @@ def prune_dict(val: Any, mode="strict"):
 
 
 def prevent_duplicates(kwargs1: dict[str, Any], kwargs2: Mapping[str, Any], *, fail_reason: str) -> None:
-    """Ensure *kwargs1* and *kwargs2* do not contain common keys.
+    """
+    Ensure *kwargs1* and *kwargs2* do not contain common keys.
 
     :raises TypeError: If common keys are found.
     """

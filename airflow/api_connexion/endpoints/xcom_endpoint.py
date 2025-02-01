@@ -19,19 +19,24 @@ from __future__ import annotations
 import copy
 from typing import TYPE_CHECKING
 
-from flask import g
 from sqlalchemy import and_, select
 
 from airflow.api_connexion import security
 from airflow.api_connexion.exceptions import BadRequest, NotFound
 from airflow.api_connexion.parameters import check_limit, format_parameters
-from airflow.api_connexion.schemas.xcom_schema import XComCollection, xcom_collection_schema, xcom_schema
+from airflow.api_connexion.schemas.xcom_schema import (
+    XComCollection,
+    xcom_collection_schema,
+    xcom_schema_native,
+    xcom_schema_string,
+)
+from airflow.api_fastapi.app import get_auth_manager
 from airflow.auth.managers.models.resource_details import DagAccessEntity
 from airflow.models import DagRun as DR, XCom
 from airflow.settings import conf
+from airflow.utils.api_migration import mark_fastapi_migration_done
 from airflow.utils.db import get_query_count
 from airflow.utils.session import NEW_SESSION, provide_session
-from airflow.www.extensions.init_auth_manager import get_auth_manager
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
@@ -39,6 +44,7 @@ if TYPE_CHECKING:
     from airflow.api_connexion.types import APIResponse
 
 
+@mark_fastapi_migration_done
 @security.requires_access_dag("GET", DagAccessEntity.XCOM)
 @format_parameters({"limit": check_limit})
 @provide_session
@@ -56,7 +62,9 @@ def get_xcom_entries(
     """Get all XCom values."""
     query = select(XCom)
     if dag_id == "~":
-        readable_dag_ids = get_auth_manager().get_permitted_dag_ids(methods=["GET"], user=g.user)
+        readable_dag_ids = get_auth_manager().get_permitted_dag_ids(
+            methods=["GET"], user=get_auth_manager().get_user()
+        )
         query = query.where(XCom.dag_id.in_(readable_dag_ids))
         query = query.join(DR, and_(XCom.dag_id == DR.dag_id, XCom.run_id == DR.run_id))
     else:
@@ -78,6 +86,7 @@ def get_xcom_entries(
     return xcom_collection_schema.dump(XComCollection(xcom_entries=query, total_entries=total_entries))
 
 
+@mark_fastapi_migration_done
 @security.requires_access_dag("GET", DagAccessEntity.XCOM)
 @provide_session
 def get_xcom_entry(
@@ -88,6 +97,7 @@ def get_xcom_entry(
     xcom_key: str,
     map_index: int = -1,
     deserialize: bool = False,
+    stringify: bool = True,
     session: Session = NEW_SESSION,
 ) -> APIResponse:
     """Get an XCom entry."""
@@ -119,4 +129,7 @@ def get_xcom_entry(
         stub.value = XCom.deserialize_value(stub)
         item = stub
 
-    return xcom_schema.dump(item)
+    if stringify:
+        return xcom_schema_string.dump(item)
+
+    return xcom_schema_native.dump(item)

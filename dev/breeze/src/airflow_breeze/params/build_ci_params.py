@@ -34,7 +34,6 @@ class BuildCiParams(CommonBuildParams):
     airflow_constraints_mode: str = "constraints-source-providers"
     airflow_constraints_reference: str = DEFAULT_AIRFLOW_CONSTRAINTS_BRANCH
     airflow_extras: str = "devel-ci"
-    airflow_pre_cached_pip_packages: bool = True
     force_build: bool = False
     upgrade_to_newer_dependencies: bool = False
     upgrade_on_failure: bool = False
@@ -65,14 +64,17 @@ class BuildCiParams(CommonBuildParams):
         self._req_arg("AIRFLOW_EXTRAS", self.airflow_extras)
         self._req_arg("AIRFLOW_IMAGE_DATE_CREATED", self.airflow_image_date_created)
         self._req_arg("AIRFLOW_IMAGE_REPOSITORY", self.airflow_image_repository)
-        self._req_arg("AIRFLOW_PRE_CACHED_PIP_PACKAGES", self.airflow_pre_cached_pip_packages)
         self._req_arg("AIRFLOW_USE_UV", self.use_uv)
+        if self.use_uv:
+            from airflow_breeze.utils.uv_utils import get_uv_timeout
+
+            self._opt_arg("UV_HTTP_TIMEOUT", get_uv_timeout(self))
         self._req_arg("AIRFLOW_VERSION", self.airflow_version)
         self._req_arg("BUILD_ID", self.build_id)
         self._req_arg("CONSTRAINTS_GITHUB_REPOSITORY", self.constraints_github_repository)
         self._req_arg("PYTHON_BASE_IMAGE", self.python_base_image)
         if self.upgrade_to_newer_dependencies:
-            self._opt_arg("UPGRADE_TO_NEWER_DEPENDENCIES", f"{random.randrange(2**32):x}")
+            self._opt_arg("UPGRADE_INVALIDATION_STRING", f"{random.randrange(2**32):x}")
             if self.eager_upgrade_additional_requirements:
                 # in case eager upgrade additional requirements have EOL, connect them together
                 self._opt_arg(
