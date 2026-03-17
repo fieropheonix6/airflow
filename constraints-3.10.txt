@@ -1,6 +1,6 @@
 
 #
-# This constraints file was automatically generated on 2026-03-16T23:55:01.211421
+# This constraints file was automatically generated on 2026-03-17T08:11:15.035220
 # via `uv pip install --resolution highest` for the "main" branch of Airflow.
 # This variant of constraints install uses the HEAD of the branch version for 'apache-airflow' but installs
 # the providers from PIP-released packages at the moment of the constraint generation.
@@ -325,7 +325,7 @@ jmespath==0.10.0
 joblib==1.5.3
 jpype1==1.6.0
 jsonpath-ng==1.8.0
-jsonpath-python==1.1.4
+jsonpath-python==1.1.5
 jsonschema-specifications==2025.9.1
 jsonschema==4.26.0
 jupyter_client==8.8.0
@@ -428,7 +428,7 @@ pexpect==4.9.0
 pgvector==0.4.2
 pinecone-plugin-interface==0.0.7
 pinecone==7.0.1
-pinotdb==9.1.0
+pinotdb==9.1.1
 platformdirs==4.9.4
 pluggy==1.6.0
 polars-runtime-32==1.39.0
@@ -449,15 +449,15 @@ pure_eval==0.2.3
 py-spy==0.4.1
 pyOpenSSL==25.1.0
 pyarrow==23.0.1
-pyasn1==0.6.2
+pyasn1==0.6.3
 pyasn1_modules==0.4.2
 pybreaker==1.4.1
 pycountry==26.2.16
 pycparser==3.0
 pycryptodome==3.23.0
-pydantic-ai-slim==1.68.0
+pydantic-ai-slim==1.69.0
 pydantic-extra-types==2.11.1
-pydantic-graph==1.68.0
+pydantic-graph==1.69.0
 pydantic-settings==2.13.1
 pydantic==2.12.5
 pydantic_core==2.41.5
@@ -584,7 +584,7 @@ universal_pathlib==0.3.10
 uritemplate==4.2.0
 urllib3==2.6.3
 uuid6==2025.0.1
-uv==0.10.10
+uv==0.10.11
 uvicorn==0.42.0
 uvloop==0.22.1
 validators==0.35.0
