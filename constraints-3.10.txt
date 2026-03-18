@@ -1,6 +1,6 @@
 
 #
-# This constraints file was automatically generated on 2026-03-18T01:59:01.413011
+# This constraints file was automatically generated on 2026-03-18T19:52:02.007447
 # via `uv pip install --resolution highest` for the "main" branch of Airflow.
 # This variant of constraints install uses the HEAD of the branch version for 'apache-airflow' but installs
 # the providers from PIP-released packages at the moment of the constraint generation.
@@ -67,7 +67,7 @@ adbc-driver-postgresql==1.10.0
 adbc-driver-sqlite==1.10.0
 adlfs==2026.2.0
 aenum==3.1.16
-aiobotocore==3.2.1
+aiobotocore==3.3.0
 aiofiles==24.1.0
 aiohappyeyeballs==2.6.1
 aiohttp-cors==0.8.1
@@ -142,8 +142,8 @@ bitarray==3.8.0
 black==26.3.1
 bleach==6.3.0
 blinker==1.9.0
-boto3==1.42.61
-botocore==1.42.61
+boto3==1.42.70
+botocore==1.42.70
 cachelib==0.13.0
 cachetools==6.2.6
 cadwyn==6.0.4
@@ -263,7 +263,7 @@ google-cloud-spanner==3.63.0
 google-cloud-speech==2.37.0
 google-cloud-storage-control==1.10.0
 google-cloud-storage-transfer==1.19.0
-google-cloud-storage==3.9.0
+google-cloud-storage==3.10.0
 google-cloud-tasks==2.21.0
 google-cloud-texttospeech==2.34.0
 google-cloud-translate==3.24.0
@@ -455,9 +455,9 @@ pybreaker==1.4.1
 pycountry==26.2.16
 pycparser==3.0
 pycryptodome==3.23.0
-pydantic-ai-slim==1.69.0
+pydantic-ai-slim==1.70.0
 pydantic-extra-types==2.11.1
-pydantic-graph==1.69.0
+pydantic-graph==1.70.0
 pydantic-settings==2.13.1
 pydantic==2.12.5
 pydantic_core==2.41.5
@@ -605,8 +605,8 @@ xmltodict==1.0.4
 yandex-query-client==0.1.4
 yandexcloud==0.382.0
 yarl==1.23.0
-ydb-dbapi==0.1.19
-ydb==3.26.6
+ydb-dbapi==0.1.20
+ydb==3.26.7
 zeep==4.3.2
 zenpy==2.0.57
 zipp==3.23.0
