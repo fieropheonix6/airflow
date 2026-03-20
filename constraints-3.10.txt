@@ -1,6 +1,6 @@
 
 #
-# This constraints file was automatically generated on 2026-03-20T02:20:11.254952
+# This constraints file was automatically generated on 2026-03-20T11:58:58.976947
 # via `uv pip install --resolution highest` for the "main" branch of Airflow.
 # This variant of constraints install uses the HEAD of the branch version for 'apache-airflow' but installs
 # the providers from PIP-released packages at the moment of the constraint generation.
@@ -297,7 +297,7 @@ httpcore==1.0.9
 httplib2==0.31.2
 httptools==0.7.1
 httpx==0.28.1
-huggingface_hub==1.7.1
+huggingface_hub==1.7.2
 humanize==4.15.0
 hvac==2.4.0
 hyperframe==6.1.0
@@ -431,8 +431,8 @@ pinecone==7.0.1
 pinotdb==9.1.1
 platformdirs==4.9.4
 pluggy==1.6.0
-polars-runtime-32==1.39.2
-polars==1.39.2
+polars-runtime-32==1.39.3
+polars==1.39.3
 portalocker==3.2.0
 presto-python-client==0.8.4
 prison==0.2.1
