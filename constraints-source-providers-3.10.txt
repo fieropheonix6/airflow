@@ -1,6 +1,6 @@
 
 #
-# This constraints file was automatically generated on 2026-03-28T03:07:49.579590
+# This constraints file was automatically generated on 2026-03-28T19:54:49.630729
 # via `uv sync --resolution highest for the "main" branch of Airflow.
 # This variant of constraints install uses the HEAD of the branch version of both
 # 'apache-airflow' package and all available community provider distributions.
@@ -165,7 +165,7 @@ coverage==7.13.5
 crcmod==1.7
 cron_descriptor==2.0.8
 croniter==6.2.2
-cryptography==44.0.3
+cryptography==46.0.5
 curlify==3.0.0
 databricks-sql-connector==4.2.5
 databricks-sqlalchemy==2.0.9
@@ -343,7 +343,7 @@ jeepney==0.9.0
 jiter==0.13.0
 jmespath==0.10.0
 joblib==1.5.3
-joserfc==1.5.0
+joserfc==1.6.3
 jpype1==1.6.0
 jsonpatch==1.33
 jsonpath-ng==1.8.0
@@ -499,7 +499,7 @@ pure_eval==0.2.3
 py-partiql-parser==0.6.3
 py-spy==0.4.1
 py4j==0.10.9.9
-pyOpenSSL==25.1.0
+pyOpenSSL==25.3.0
 pyarrow==23.0.1
 pyasn1==0.6.3
 pyasn1_modules==0.4.2
