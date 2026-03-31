@@ -1,6 +1,6 @@
 
 #
-# This constraints file was automatically generated on 2026-03-31T06:30:26.449287
+# This constraints file was automatically generated on 2026-03-31T19:46:33.720548
 # via `uv sync --resolution highest for the "main" branch of Airflow.
 # This variant of constraints install uses the HEAD of the branch version of both
 # 'apache-airflow' package and all available community provider distributions.
@@ -34,7 +34,7 @@ PyJWT==2.12.1
 PyMySQL==1.1.2
 PyNaCl==1.6.2
 PyYAML==6.0.3
-Pygments==2.20.0
+Pygments==2.19.2
 SQLAlchemy-Utils==0.42.1
 SQLAlchemy==2.0.48
 SecretStorage==3.5.0
@@ -52,7 +52,7 @@ aiobotocore==3.3.0
 aiofiles==24.1.0
 aiohappyeyeballs==2.6.1
 aiohttp-cors==0.8.1
-aiohttp==3.13.4
+aiohttp==3.13.3
 aioitertools==0.13.0
 aiomysql==0.3.2
 aioresponses==0.7.8
@@ -135,7 +135,7 @@ boto3==1.42.70
 botocore==1.42.70
 cachelib==0.13.0
 cachetools==6.2.6
-cadwyn==6.2.0
+cadwyn==6.1.1
 cassandra-driver==3.29.3
 cattrs==26.1.0
 celery==5.6.3
@@ -196,7 +196,7 @@ eventlet==0.40.4
 exceptiongroup==1.3.1
 execnet==2.1.2
 executing==2.2.1
-facebook_business==25.0.1
+facebook_business==25.0.0
 fastapi-cli==0.0.24
 fastapi==0.135.2
 fastavro==1.12.1
@@ -209,12 +209,12 @@ flit==3.12.0
 flit_core==3.12.0
 flower==2.0.1
 frozenlist==1.8.0
-fsspec==2026.3.0
+fsspec==2026.2.0
 future==1.0.0
 gcloud-aio-auth==5.4.4
 gcloud-aio-bigquery==7.1.0
 gcloud-aio-storage==9.6.4
-gcsfs==2026.3.0
+gcsfs==2026.2.0
 genai-prices==0.0.56
 geomet==1.1.0
 gevent==25.9.1
@@ -224,7 +224,7 @@ google-analytics-admin==0.27.0
 google-api-core==2.30.0
 google-api-python-client==2.193.0
 google-auth-httplib2==0.3.0
-google-auth-oauthlib==1.3.1
+google-auth-oauthlib==1.3.0
 google-auth==2.49.1
 google-cloud-aiplatform==1.143.0
 google-cloud-alloydb==0.8.0
@@ -240,12 +240,12 @@ google-cloud-build==3.35.0
 google-cloud-compute==1.46.0
 google-cloud-container==2.63.0
 google-cloud-core==2.5.0
-google-cloud-datacatalog==3.30.0
-google-cloud-dataflow-client==0.12.0
+google-cloud-datacatalog==3.29.0
+google-cloud-dataflow-client==0.11.0
 google-cloud-dataform==0.9.0
-google-cloud-dataplex==2.18.0
-google-cloud-dataproc-metastore==1.22.0
-google-cloud-dataproc==5.26.0
+google-cloud-dataplex==2.17.0
+google-cloud-dataproc-metastore==1.21.0
+google-cloud-dataproc==5.25.0
 google-cloud-dlp==3.34.0
 google-cloud-kms==3.12.0
 google-cloud-language==2.20.0
@@ -272,7 +272,7 @@ google-cloud-videointelligence==2.19.0
 google-cloud-vision==3.13.0
 google-cloud-workflows==1.21.0
 google-crc32c==1.8.0
-google-genai==1.69.0
+google-genai==1.68.0
 google-resumable-media==2.8.0
 googleapis-common-protos==1.73.1
 graphql-core==3.2.8
@@ -284,10 +284,9 @@ griffelib==2.0.2
 grpc-google-iam-v1==0.14.3
 grpc-interceptor==0.15.4
 grpcio-gcp==0.2.2
-grpcio-health-checking==1.80.0
-grpcio-status==1.80.0
-grpcio-tools==1.80.0
-grpcio==1.80.0
+grpcio-status==1.78.0
+grpcio-tools==1.78.0
+grpcio==1.78.0
 gssapi==1.11.1
 gunicorn==25.3.0
 h11==0.16.0
@@ -367,7 +366,7 @@ limits==5.8.0
 linkify-it-py==2.1.0
 litellm==1.82.6
 lockfile==0.12.2
-logfire-api==4.31.0
+logfire-api==4.30.0
 looker_sdk==26.6.1
 lxml==6.0.2
 lz4==4.4.5
@@ -404,7 +403,7 @@ multidict==6.7.1
 mypy-boto3-appflow==1.42.3
 mypy-boto3-rds==1.42.75
 mypy-boto3-redshift-data==1.42.3
-mypy-boto3-s3==1.42.79
+mypy-boto3-s3==1.42.67
 mypy==1.19.1
 mypy_extensions==1.1.0
 mysql-connector-python==9.6.0
@@ -465,9 +464,8 @@ pdbr==0.9.7
 pendulum==3.2.0
 pexpect==4.9.0
 pgvector==0.4.2
-pinecone-plugin-assistant==3.0.3
 pinecone-plugin-interface==0.0.7
-pinecone==8.1.0
+pinecone==7.0.1
 pinotdb==9.1.1
 pipdeptree==2.34.0
 platformdirs==4.9.4
@@ -563,13 +561,13 @@ readme_renderer==44.0
 redis==6.4.0
 redshift-connector==2.1.7
 referencing==0.37.0
-regex==2026.3.32
+regex==2026.2.28
 requests-file==3.0.1
 requests-kerberos==0.15.0
 requests-mock==1.12.1
 requests-oauthlib==2.0.0
 requests-toolbelt==1.0.0
-requests==2.33.1
+requests==2.33.0
 requests_ntlm==1.3.0
 responses==0.26.0
 restructuredtext_lint==2.0.2
@@ -584,7 +582,7 @@ rpds-py==0.30.0
 rsa==4.9.1
 ruamel.yaml==0.19.1
 ruff==0.15.8
-s3fs==2026.3.0
+s3fs==2026.2.0
 s3transfer==0.16.0
 sagemaker_studio==1.0.25
 scikit-learn==1.5.2
@@ -633,7 +631,7 @@ sqlalchemy-spanner==1.17.3
 sqlalchemy_drill==1.1.10
 sqlglot==30.1.0
 sqlparse==0.5.5
-sse-starlette==3.3.4
+sse-starlette==3.3.3
 sshtunnel==0.4.0
 stack-data==0.6.3
 starlette==0.52.1
@@ -713,7 +711,7 @@ virtualenv==21.2.0
 watchfiles==1.1.1
 watchtower==3.4.0
 wcwidth==0.6.0
-weaviate-client==4.16.2
+weaviate-client==4.20.4
 webencodings==0.5.1
 websocket-client==1.8.0
 websockets==16.0
@@ -723,7 +721,7 @@ xmlsec==1.3.17
 xmltodict==1.0.4
 yamllint==1.38.0
 yandex-query-client==0.1.4
-yandexcloud==0.384.0
+yandexcloud==0.383.0
 yarl==1.23.0
 ydb-dbapi==0.1.20
 ydb==3.26.8
