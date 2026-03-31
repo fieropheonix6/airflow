@@ -1,6 +1,6 @@
 
 #
-# This constraints file was automatically generated on 2026-03-29T20:36:07.158462
+# This constraints file was automatically generated on 2026-03-31T06:35:31.329201
 # via `uv pip install --resolution highest` for the "main" branch of Airflow.
 # This variant of constraints install uses the HEAD of the branch version for 'apache-airflow' but installs
 # the providers from PIP-released packages at the moment of the constraint generation.
@@ -47,7 +47,7 @@ Jinja2==3.1.6
 Mako==1.3.10
 Markdown==3.10.2
 MarkupSafe==3.0.3
-PyAthena==3.30.0
+PyAthena==3.30.1
 PyGithub==2.9.0
 PyHive==0.7.0
 PyJWT==2.12.1
@@ -79,17 +79,14 @@ aiosmtplib==5.1.0
 aiosqlite==0.21.0
 airbyte-api==0.53.0
 alembic==1.18.4
-alibabacloud-adb20211201==3.7.0
+alibabacloud-adb20211201==3.7.1
 alibabacloud-credentials-api==1.0.0
 alibabacloud-credentials==1.0.8
-alibabacloud-openapi-util==0.2.4
 alibabacloud-oss-v2==1.2.4
+alibabacloud-tea-openapi==0.4.4
 alibabacloud-tea-util==0.3.14
 alibabacloud-tea==0.4.3
-alibabacloud_endpoint_util==0.0.4
 alibabacloud_gateway_spi==0.0.3
-alibabacloud_tea_openapi==0.3.16
-alibabacloud_tea_xml==0.0.3
 amqp==5.3.1
 annotated-doc==0.0.4
 annotated-types==0.7.0
@@ -151,7 +148,7 @@ cachetools==6.2.6
 cadwyn==6.1.1
 cassandra-driver==3.29.3
 cattrs==26.1.0
-celery==5.6.2
+celery==5.6.3
 certifi==2026.2.25
 cffi==2.0.0
 chardet==6.0.0.post1
@@ -162,7 +159,7 @@ click-plugins==1.1.1.2
 click-repl==0.3.0
 click==8.3.1
 cloudpickle==3.1.1
-cohere==5.20.7
+cohere==5.21.1
 colorama==0.4.6
 colorful==0.5.8
 colorlog==6.10.1
@@ -171,8 +168,9 @@ confluent-kafka==2.13.2
 crcmod-plus==2.3.1
 cron_descriptor==2.0.8
 croniter==6.2.2
-cryptography==46.0.5
+cryptography==46.0.6
 curlify==3.0.0
+darabonba-core==1.0.5
 databricks-sql-connector==4.2.5
 dataclasses-json==0.6.7
 datadog==0.52.1
@@ -246,34 +244,34 @@ google-cloud-dataplex==2.17.0
 google-cloud-dataproc-metastore==1.21.0
 google-cloud-dataproc==5.25.0
 google-cloud-dlp==3.34.0
-google-cloud-kms==3.11.0
-google-cloud-language==2.19.0
-google-cloud-logging==3.14.0
-google-cloud-managedkafka==0.3.0
-google-cloud-memcache==1.14.0
-google-cloud-monitoring==2.29.1
-google-cloud-orchestration-airflow==1.19.0
-google-cloud-os-login==2.19.0
+google-cloud-kms==3.12.0
+google-cloud-language==2.20.0
+google-cloud-logging==3.15.0
+google-cloud-managedkafka==0.4.0
+google-cloud-memcache==1.15.0
+google-cloud-monitoring==2.30.0
+google-cloud-orchestration-airflow==1.20.0
+google-cloud-os-login==2.20.0
 google-cloud-pubsub==2.36.0
-google-cloud-redis==2.20.0
-google-cloud-resource-manager==1.16.0
-google-cloud-run==0.15.0
-google-cloud-secret-manager==2.26.0
+google-cloud-redis==2.21.0
+google-cloud-resource-manager==1.17.0
+google-cloud-run==0.16.0
+google-cloud-secret-manager==2.27.0
 google-cloud-spanner==3.63.0
-google-cloud-speech==2.37.0
-google-cloud-storage-control==1.10.0
-google-cloud-storage-transfer==1.19.0
+google-cloud-speech==2.38.0
+google-cloud-storage-control==1.11.0
+google-cloud-storage-transfer==1.20.0
 google-cloud-storage==3.10.1
-google-cloud-tasks==2.21.0
-google-cloud-texttospeech==2.34.0
-google-cloud-translate==3.24.0
-google-cloud-videointelligence==2.18.0
-google-cloud-vision==3.12.1
-google-cloud-workflows==1.20.0
+google-cloud-tasks==2.22.0
+google-cloud-texttospeech==2.35.0
+google-cloud-translate==3.25.0
+google-cloud-videointelligence==2.19.0
+google-cloud-vision==3.13.0
+google-cloud-workflows==1.21.0
 google-crc32c==1.8.0
 google-genai==1.68.0
 google-resumable-media==2.8.0
-googleapis-common-protos==1.73.0
+googleapis-common-protos==1.73.1
 graphviz==0.21
 greenback==1.3.0
 greenlet==3.3.2
@@ -286,7 +284,7 @@ grpcio-status==1.78.0
 grpcio-tools==1.78.0
 grpcio==1.78.0
 gssapi==1.11.1
-gunicorn==25.2.0
+gunicorn==25.3.0
 h11==0.16.0
 h2==4.3.0
 hdfs==2.7.3
@@ -386,7 +384,7 @@ neo4j==6.1.0
 nest-asyncio==1.6.0
 numpy==2.2.6
 oauthlib==3.3.1
-openai==2.29.0
+openai==2.30.0
 opencensus-context==0.1.3
 opencensus==0.11.4
 openlineage-integration-common==1.45.0
@@ -412,7 +410,7 @@ orjson==3.11.7
 outcome==1.3.0.post0
 packaging==26.0
 pagerduty==6.2.1
-pandas-gbq==0.34.0
+pandas-gbq==0.34.1
 pandas-stubs==2.3.3.260113
 pandas==2.3.3
 pandocfilters==1.5.1
@@ -438,7 +436,7 @@ prison==0.2.1
 prometheus_client==0.24.1
 prompt_toolkit==3.0.52
 propcache==0.4.1
-proto-plus==1.27.1
+proto-plus==1.27.2
 protobuf==6.33.6
 psutil==7.2.2
 psycopg2-binary==2.9.11
@@ -446,7 +444,7 @@ ptyprocess==0.7.0
 pure-sasl==0.6.2
 pure_eval==0.2.3
 py-spy==0.4.1
-pyOpenSSL==25.3.0
+pyOpenSSL==26.0.0
 pyarrow==23.0.1
 pyasn1==0.6.3
 pyasn1_modules==0.4.2
@@ -454,9 +452,9 @@ pybreaker==1.4.1
 pycountry==26.2.16
 pycparser==3.0
 pycryptodome==3.23.0
-pydantic-ai-slim==1.71.0
+pydantic-ai-slim==1.73.0
 pydantic-extra-types==2.11.1
-pydantic-graph==1.71.0
+pydantic-graph==1.73.0
 pydantic-settings==2.13.1
 pydantic==2.12.5
 pydantic_core==2.41.5
@@ -478,7 +476,7 @@ pyspnego==0.12.1
 python-arango==8.3.1
 python-daemon==3.1.2
 python-dateutil==2.9.0.post0
-python-discovery==1.2.0
+python-discovery==1.2.1
 python-dotenv==1.2.2
 python-http-client==3.3.7
 python-jenkins==1.8.3
@@ -493,7 +491,7 @@ pytz==2026.1.post1
 pywinrm==0.5.0
 pyzmq==27.1.0
 qdrant-client==1.17.1
-ray==2.54.0
+ray==2.54.1
 reactivex==4.1.0
 redis==6.4.0
 redshift-connector==2.1.7
@@ -531,7 +529,7 @@ smart_open==7.5.1
 smbprotocol==1.16.0
 smmap==5.0.3
 sniffio==1.3.1
-snowflake-connector-python==4.3.0
+snowflake-connector-python==4.4.0
 snowflake-snowpark-python==1.48.0
 snowflake-sqlalchemy==1.9.0
 sortedcontainers==2.4.0
@@ -572,7 +570,7 @@ trino==0.337.0
 typer==0.24.1
 types-protobuf==6.32.1.20260221
 types-pytz==2026.1.1.20260304
-types-requests==2.32.4.20260324
+types-requests==2.33.0.20260327
 typing-inspect==0.9.0
 typing-inspection==0.4.2
 typing_extensions==4.15.0
@@ -583,7 +581,7 @@ universal_pathlib==0.3.10
 uritemplate==4.2.0
 urllib3==2.6.3
 uuid6==2025.0.1
-uv==0.11.1
+uv==0.11.2
 uvicorn==0.42.0
 uvloop==0.22.1
 validators==0.35.0
@@ -605,7 +603,7 @@ yandex-query-client==0.1.4
 yandexcloud==0.383.0
 yarl==1.23.0
 ydb-dbapi==0.1.20
-ydb==3.26.7
+ydb==3.26.8
 zeep==4.3.2
 zenpy==2.0.57
 zipp==3.23.0
