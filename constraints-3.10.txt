@@ -1,6 +1,6 @@
 
 #
-# This constraints file was automatically generated on 2026-03-31T19:51:39.017065
+# This constraints file was automatically generated on 2026-04-02T07:39:03.371575
 # via `uv pip install --resolution highest` for the "main" branch of Airflow.
 # This variant of constraints install uses the HEAD of the branch version for 'apache-airflow' but installs
 # the providers from PIP-released packages at the moment of the constraint generation.
@@ -71,7 +71,7 @@ aiobotocore==3.3.0
 aiofiles==24.1.0
 aiohappyeyeballs==2.6.1
 aiohttp-cors==0.8.1
-aiohttp==3.13.3
+aiohttp==3.13.4
 aioitertools==0.13.0
 aiomysql==0.3.2
 aiosignal==1.4.0
@@ -206,12 +206,12 @@ flask-appbuilder==5.2.0
 flask-babel==4.0.0
 flower==2.0.1
 frozenlist==1.8.0
-fsspec==2026.2.0
+fsspec==2026.3.0
 future==1.0.0
 gcloud-aio-auth==5.4.4
 gcloud-aio-bigquery==7.1.0
 gcloud-aio-storage==9.6.4
-gcsfs==2026.2.0
+gcsfs==2026.3.0
 genai-prices==0.0.56
 geomet==1.1.0
 gevent==25.9.1
@@ -269,7 +269,7 @@ google-cloud-videointelligence==2.19.0
 google-cloud-vision==3.13.0
 google-cloud-workflows==1.21.0
 google-crc32c==1.8.0
-google-genai==1.68.0
+google-genai==1.69.0
 google-resumable-media==2.8.0
 googleapis-common-protos==1.73.1
 graphviz==0.21
@@ -423,8 +423,9 @@ pbr==7.0.3
 pendulum==3.2.0
 pexpect==4.9.0
 pgvector==0.4.2
+pinecone-plugin-assistant==3.0.3
 pinecone-plugin-interface==0.0.7
-pinecone==7.0.1
+pinecone==8.1.0
 pinotdb==9.1.1
 platformdirs==4.9.4
 pluggy==1.6.0
@@ -496,7 +497,7 @@ reactivex==4.1.0
 redis==6.4.0
 redshift-connector==2.1.7
 referencing==0.37.0
-regex==2026.2.28
+regex==2026.3.32
 requests-file==3.0.1
 requests-kerberos==0.15.0
 requests-oauthlib==2.0.0
@@ -510,7 +511,7 @@ rich==13.9.4
 rpds-py==0.30.0
 rsa==4.9.1
 ruamel.yaml==0.19.1
-s3fs==2026.2.0
+s3fs==2026.3.0
 s3transfer==0.16.0
 sagemaker_studio==1.0.25
 scikit-learn==1.5.2
