@@ -1,6 +1,6 @@
 
 #
-# This constraints file was automatically generated on 2026-04-06T19:55:09.358448
+# This constraints file was automatically generated on 2026-04-07T03:07:17.942758
 # via `uv sync --resolution highest for the "main" branch of Airflow.
 # This variant of constraints install uses the HEAD of the branch version of both
 # 'apache-airflow' package and all available community provider distributions.
@@ -127,7 +127,7 @@ backports.zstd==1.3.0
 bcrypt==5.0.0
 beautifulsoup4==4.14.3
 billiard==4.2.4
-bitarray==3.8.0
+bitarray==3.8.1
 black==26.3.1
 bleach==6.3.0
 blinker==1.9.0
@@ -226,7 +226,7 @@ google-api-python-client==2.193.0
 google-auth-httplib2==0.3.1
 google-auth-oauthlib==1.3.1
 google-auth==2.49.1
-google-cloud-aiplatform==1.144.0
+google-cloud-aiplatform==1.145.0
 google-cloud-alloydb==0.9.0
 google-cloud-appengine-logging==1.9.0
 google-cloud-audit-log==0.5.0
@@ -375,7 +375,7 @@ markdown-it-py==4.0.0
 marshmallow-sqlalchemy==1.5.0
 marshmallow==3.26.2
 matplotlib-inline==0.2.1
-mcp==1.26.0
+mcp==1.27.0
 mdit-py-plugins==0.5.0
 mdurl==0.1.2
 memray==1.19.2
@@ -388,7 +388,7 @@ microsoft-kiota-serialization-json==1.9.10
 microsoft-kiota-serialization-text==1.9.10
 mistune==3.2.0
 mmh3==5.2.1
-more-itertools==10.8.0
+more-itertools==11.0.1
 moto==5.1.22
 mpmath==1.3.0
 msal-extensions==1.3.1
@@ -467,7 +467,7 @@ pexpect==4.9.0
 pgvector==0.4.2
 pinecone-plugin-assistant==3.0.3
 pinecone-plugin-interface==0.0.7
-pinecone==8.1.0
+pinecone==8.1.1
 pinotdb==9.1.1
 pipdeptree==2.34.0
 platformdirs==4.9.4
@@ -702,7 +702,7 @@ uritemplate==4.2.0
 urllib3==2.6.3
 userpath==1.9.2
 uuid6==2025.0.1
-uv==0.11.2
+uv==0.11.3
 uvicorn==0.42.0
 uvloop==0.22.1
 validators==0.35.0

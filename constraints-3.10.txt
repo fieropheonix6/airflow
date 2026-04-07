@@ -1,6 +1,6 @@
 
 #
-# This constraints file was automatically generated on 2026-04-06T20:00:05.087239
+# This constraints file was automatically generated on 2026-04-07T03:12:16.647378
 # via `uv pip install --resolution highest` for the "main" branch of Airflow.
 # This variant of constraints install uses the HEAD of the branch version for 'apache-airflow' but installs
 # the providers from PIP-released packages at the moment of the constraint generation.
@@ -218,7 +218,7 @@ gevent==25.9.1
 gitdb==4.0.12
 google-ads==30.0.0
 google-analytics-admin==0.28.0
-google-api-core==2.30.1
+google-api-core==2.30.2
 google-api-python-client==2.193.0
 google-auth-httplib2==0.3.1
 google-auth-oauthlib==1.3.1
@@ -232,13 +232,13 @@ google-cloud-batch==0.21.0
 google-cloud-bigquery-datatransfer==3.22.0
 google-cloud-bigquery-storage==2.37.0
 google-cloud-bigquery==3.41.0
-google-cloud-bigtable==2.35.0
+google-cloud-bigtable==2.36.0
 google-cloud-build==3.36.0
 google-cloud-compute==1.47.0
 google-cloud-container==2.64.0
 google-cloud-core==2.5.1
 google-cloud-datacatalog==3.30.0
-google-cloud-dataflow-client==0.12.0
+google-cloud-dataflow-client==0.13.0
 google-cloud-dataform==0.10.0
 google-cloud-dataplex==2.18.0
 google-cloud-dataproc-metastore==1.22.0
@@ -263,7 +263,7 @@ google-cloud-storage-control==1.11.0
 google-cloud-storage-transfer==1.20.0
 google-cloud-storage==3.10.1
 google-cloud-tasks==2.22.0
-google-cloud-texttospeech==2.35.0
+google-cloud-texttospeech==2.36.0
 google-cloud-translate==3.25.0
 google-cloud-videointelligence==2.19.0
 google-cloud-vision==3.13.0
@@ -271,7 +271,7 @@ google-cloud-workflows==1.21.0
 google-crc32c==1.8.0
 google-genai==1.70.0
 google-resumable-media==2.8.2
-googleapis-common-protos==1.73.1
+googleapis-common-protos==1.74.0
 graphviz==0.21
 greenback==1.3.0
 greenlet==3.3.2
@@ -454,9 +454,9 @@ pybreaker==1.4.1
 pycountry==26.2.16
 pycparser==3.0
 pycryptodome==3.23.0
-pydantic-ai-slim==1.76.0
+pydantic-ai-slim==1.77.0
 pydantic-extra-types==2.11.1
-pydantic-graph==1.76.0
+pydantic-graph==1.77.0
 pydantic-settings==2.13.1
 pydantic==2.12.5
 pydantic_core==2.41.5
@@ -514,7 +514,7 @@ rsa==4.9.1
 ruamel.yaml==0.19.1
 s3fs==2026.3.0
 s3transfer==0.16.0
-sagemaker_studio==1.0.25
+sagemaker_studio==1.0.26
 scikit-learn==1.5.2
 scipy==1.15.3
 scramp==1.4.8
