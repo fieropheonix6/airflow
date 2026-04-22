@@ -1,6 +1,6 @@
 
 #
-# This constraints file was automatically generated on 2026-04-21T02:11:31.495496
+# This constraints file was automatically generated on 2026-04-22T15:04:03.801693
 # via `uv sync --resolution highest for the "main" branch of Airflow.
 # This variant of constraints install uses the HEAD of the branch version of both
 # 'apache-airflow' package and all available community provider distributions.
@@ -98,7 +98,7 @@ azure-core==1.39.0
 azure-cosmos==4.15.0
 azure-datalake-store==0.0.53
 azure-identity==1.25.3
-azure-keyvault-secrets==4.10.0
+azure-keyvault-secrets==4.11.0
 azure-kusto-data==6.0.3
 azure-mgmt-compute==37.2.0
 azure-mgmt-containerinstance==10.1.0
@@ -227,7 +227,7 @@ google-api-python-client==2.194.0
 google-auth-httplib2==0.3.1
 google-auth-oauthlib==1.3.1
 google-auth==2.49.2
-google-cloud-aiplatform==1.148.0
+google-cloud-aiplatform==1.148.1
 google-cloud-alloydb==0.9.0
 google-cloud-appengine-logging==1.9.0
 google-cloud-audit-log==0.5.0
@@ -315,7 +315,7 @@ ibmcloudant==0.11.5
 icalendar==7.0.3
 icdiff==2.0.10
 id==1.6.1
-identify==2.6.18
+identify==2.6.19
 idna==3.11
 ijson==3.4.0.post0
 imagesize==2.0.0
@@ -341,7 +341,7 @@ jiter==0.14.0
 jmespath==1.1.0
 joblib==1.5.3
 joserfc==1.6.4
-jpype1==1.6.0
+jpype1==1.7.0
 jsonpatch==1.33
 jsonpath-ng==1.8.0
 jsonpath-python==1.1.5
@@ -404,7 +404,7 @@ msrestazure==0.6.4.post1
 multi_key_dict==2.0.3
 multidict==6.7.1
 mypy-boto3-appflow==1.42.3
-mypy-boto3-rds==1.42.75
+mypy-boto3-rds==1.42.90
 mypy-boto3-redshift-data==1.42.87
 mypy-boto3-s3==1.42.85
 mypy==1.20.1
@@ -475,8 +475,8 @@ pipdeptree==2.35.1
 platformdirs==4.9.6
 pluggy==1.6.0
 plyvel==1.5.1
-polars-runtime-32==1.39.3
-polars==1.39.3
+polars-runtime-32==1.40.0
+polars==1.40.0
 portalocker==3.2.0
 pprintpp==0.4.0
 pre_commit==4.5.1
@@ -504,12 +504,12 @@ pybreaker==1.4.1
 pycountry==26.2.16
 pycparser==3.0
 pycryptodome==3.23.0
-pydantic-ai-slim==1.83.0
+pydantic-ai-slim==1.84.1
 pydantic-extra-types==2.11.1
-pydantic-graph==1.83.0
+pydantic-graph==1.84.1
 pydantic-settings==2.13.1
-pydantic==2.13.1
-pydantic_core==2.46.1
+pydantic==2.13.2
+pydantic_core==2.46.2
 pydata-google-auth==1.9.1
 pydruid==0.6.9
 pyenchant==3.3.0
@@ -586,7 +586,7 @@ rich==13.9.4
 rpds-py==0.30.0
 rsa==4.9.1
 ruamel.yaml==0.19.1
-ruff==0.15.10
+ruff==0.15.11
 s3fs==2026.3.0
 s3transfer==0.16.0
 sagemaker_studio==1.0.26
