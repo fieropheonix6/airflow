@@ -1,6 +1,6 @@
 
 #
-# This constraints file was automatically generated on 2026-04-28T20:43:15.675975
+# This constraints file was automatically generated on 2026-04-29T00:53:55.599968
 # via `uv pip install --resolution highest` for the "main" branch of Airflow.
 # This variant of constraints install uses the HEAD of the branch version for 'apache-airflow' but installs
 # the providers from PIP-released packages at the moment of the constraint generation.
@@ -452,7 +452,7 @@ psycopg2-binary==2.9.12
 ptyprocess==0.7.0
 pure-sasl==0.6.2
 pure_eval==0.2.3
-py-spy==0.4.1
+py-spy==0.4.2
 pyOpenSSL==26.1.0
 pyarrow==24.0.0
 pyasn1==0.6.3
@@ -587,7 +587,7 @@ universal_pathlib==0.3.10
 uritemplate==4.2.0
 urllib3==2.6.3
 uuid6==2025.0.1
-uv==0.11.7
+uv==0.11.8
 uvicorn==0.46.0
 uvloop==0.22.1
 validators==0.35.0
@@ -609,7 +609,7 @@ yandex-query-client==0.1.4
 yandexcloud==0.387.0
 yarl==1.23.0
 ydb-dbapi==0.1.20
-ydb==3.28.2
+ydb==3.28.3
 zeep==4.3.2
 zenpy==2.0.57
 zipp==3.23.1
