@@ -1,6 +1,6 @@
 
 #
-# This constraints file was automatically generated on 2026-04-30T08:15:27.586763
+# This constraints file was automatically generated on 2026-04-30T20:53:16.304972
 # via `uv pip install --resolution highest` for the "main" branch of Airflow.
 # This variant of constraints install uses the HEAD of the branch version for 'apache-airflow' but installs
 # the providers from PIP-released packages at the moment of the constraint generation.
@@ -97,7 +97,7 @@ annotated-types==0.7.0
 anyio==4.13.0
 apache-airflow-providers-apache-iceberg==1.4.1
 apispec==6.10.0
-apprise==1.9.9
+apprise==1.10.0
 argcomplete==3.6.3
 asana==5.2.4
 asgiref==3.11.1
@@ -573,7 +573,7 @@ tornado==6.5.5
 tqdm==4.67.3
 traitlets==5.14.3
 trino==0.337.0
-typer==0.24.2
+typer==0.25.0
 types-protobuf==7.34.1.20260408
 types-pytz==2026.1.1.20260408
 types-requests==2.33.0.20260408
