@@ -1,6 +1,6 @@
 
 #
-# This constraints file was automatically generated on 2026-04-29T00:53:55.599968
+# This constraints file was automatically generated on 2026-04-30T08:15:27.586763
 # via `uv pip install --resolution highest` for the "main" branch of Airflow.
 # This variant of constraints install uses the HEAD of the branch version for 'apache-airflow' but installs
 # the providers from PIP-released packages at the moment of the constraint generation.
@@ -203,7 +203,7 @@ facebook_business==25.0.1
 fastapi-cli==0.0.24
 fastapi==0.136.1
 fastavro==1.12.2
-fastcore==1.12.42
+fastcore==1.12.43
 fastjsonschema==2.21.2
 fastuuid==0.14.0
 filelock==3.29.0
@@ -461,9 +461,9 @@ pybreaker==1.4.1
 pycountry==26.2.16
 pycparser==3.0
 pycryptodome==3.23.0
-pydantic-ai-slim==1.86.1
+pydantic-ai-slim==1.87.0
 pydantic-extra-types==2.11.1
-pydantic-graph==1.86.1
+pydantic-graph==1.87.0
 pydantic-settings==2.14.0
 pydantic==2.13.3
 pydantic_core==2.46.3
@@ -614,5 +614,5 @@ zeep==4.3.2
 zenpy==2.0.57
 zipp==3.23.1
 zope.event==6.1
-zope.interface==8.3
+zope.interface==8.4
 zstandard==0.25.0

@@ -1,6 +1,6 @@
 
 #
-# This constraints file was automatically generated on 2026-04-29T00:49:15.786701
+# This constraints file was automatically generated on 2026-04-30T08:10:59.922966
 # via `uv sync --resolution highest for the "main" branch of Airflow.
 # This variant of constraints install uses the HEAD of the branch version of both
 # 'apache-airflow' package and all available community provider distributions.
@@ -63,14 +63,17 @@ airbyte-api==0.53.0
 akeyless==5.0.24
 alabaster==1.0.0
 alembic==1.18.4
-alibabacloud-adb20211201==3.7.1
+alibabacloud-adb20211201==3.7.0
 alibabacloud-credentials-api==1.0.0
 alibabacloud-credentials==1.0.8
+alibabacloud-openapi-util==0.2.4
 alibabacloud-oss-v2==1.2.5
-alibabacloud-tea-openapi==0.4.4
 alibabacloud-tea-util==0.3.14
 alibabacloud-tea==0.4.3
+alibabacloud_endpoint_util==0.0.4
 alibabacloud_gateway_spi==0.0.3
+alibabacloud_tea_openapi==0.3.16
+alibabacloud_tea_xml==0.0.3
 amqp==5.3.1
 annotated-doc==0.0.4
 annotated-types==0.7.0
@@ -162,9 +165,8 @@ coverage==7.13.5
 crcmod-plus==2.3.1
 cron_descriptor==2.0.8
 croniter==6.2.2
-cryptography==46.0.7
+cryptography==47.0.0
 curlify==3.0.0
-darabonba-core==1.0.5
 databricks-sql-connector==4.2.5
 databricks-sqlalchemy==2.0.9
 dataclasses-json==0.6.7
@@ -349,7 +351,7 @@ jsonpath-python==1.1.5
 jsonpointer==3.1.1
 jsonschema-path==0.4.5
 jsonschema-specifications==2025.9.1
-jsonschema==4.24.1
+jsonschema==4.26.0
 jupyter_client==8.8.0
 jupyter_core==5.9.1
 jupyterlab_pygments==0.3.0
@@ -419,13 +421,13 @@ nbformat==5.10.4
 neo4j==6.1.0
 nest-asyncio==1.6.0
 networkx==3.4.2
-nh3==0.3.4
+nh3==0.3.5
 nodeenv==1.10.0
 numpy==2.2.6
 oauthlib==3.3.1
 openai==2.32.0
 openapi-schema-validator==0.8.1
-openapi-spec-validator==0.8.4
+openapi-spec-validator==0.8.5
 opencensus-context==0.1.3
 opencensus==0.11.4
 openlineage-integration-common==1.46.0
@@ -449,7 +451,7 @@ oracledb==3.4.2
 ordered-set==4.1.0
 orjson==3.11.8
 outcome==1.3.0.post0
-packaging==26.1
+packaging==26.2
 pagefind==1.5.2
 pagefind_bin==1.5.2
 pagerduty==6.2.1
@@ -495,9 +497,9 @@ ptyprocess==0.7.0
 pure-sasl==0.6.2
 pure_eval==0.2.3
 py-partiql-parser==0.6.3
-py-spy==0.4.1
+py-spy==0.4.2
 py4j==0.10.9.9
-pyOpenSSL==26.0.0
+pyOpenSSL==26.1.0
 pyarrow==24.0.0
 pyasn1==0.6.3
 pyasn1_modules==0.4.2
@@ -505,9 +507,9 @@ pybreaker==1.4.1
 pycountry==26.2.16
 pycparser==3.0
 pycryptodome==3.23.0
-pydantic-ai-slim==1.86.1
+pydantic-ai-slim==1.87.0
 pydantic-extra-types==2.11.1
-pydantic-graph==1.86.1
+pydantic-graph==1.87.0
 pydantic-settings==2.14.0
 pydantic==2.13.3
 pydantic_core==2.46.3
@@ -526,7 +528,7 @@ pyodps==0.12.6
 pyparsing==3.3.2
 pyproject_hooks==1.2.0
 pypsrp==0.9.1
-pyroaring==1.0.4
+pyroaring==1.1.0
 pyspark-client==4.1.1
 pyspark==4.1.1
 pyspnego==0.12.1
@@ -698,7 +700,7 @@ types-toml==0.10.8.20260408
 typing-inspect==0.9.0
 typing-inspection==0.4.2
 typing_extensions==4.15.0
-tzdata==2026.1
+tzdata==2026.2
 tzlocal==5.3.1
 uc-micro-py==2.0.0
 universal_pathlib==0.3.10
@@ -729,10 +731,10 @@ yandex-query-client==0.1.4
 yandexcloud==0.387.0
 yarl==1.23.0
 ydb-dbapi==0.1.20
-ydb==3.28.2
+ydb==3.28.3
 zeep==4.3.2
 zenpy==2.0.57
 zipp==3.23.1
 zope.event==6.1
-zope.interface==8.3
+zope.interface==8.4
 zstandard==0.25.0
