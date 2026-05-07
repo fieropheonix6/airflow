@@ -1,6 +1,6 @@
 
 #
-# This constraints file was automatically generated on 2026-05-07T08:32:15.357297
+# This constraints file was automatically generated on 2026-05-07T21:03:46.670200
 # via `uv pip install --resolution highest` for the "main" branch of Airflow.
 # This variant of constraints install uses the HEAD of the branch version for 'apache-airflow' but installs
 # the providers from PIP-released packages at the moment of the constraint generation.
@@ -150,7 +150,7 @@ blinker==1.9.0
 boto3==1.43.0
 botocore==1.43.0
 cachelib==0.13.0
-cachetools==7.1.0
+cachetools==7.1.1
 cadwyn==6.2.2
 cassandra-driver==3.30.0
 cattrs==26.1.0
@@ -369,7 +369,7 @@ microsoft-kiota-authentication-azure==1.10.1
 microsoft-kiota-http==1.10.1
 microsoft-kiota-serialization-json==1.10.1
 microsoft-kiota-serialization-text==1.10.1
-mistune==3.2.0
+mistune==3.2.1
 mmh3==5.2.1
 more-itertools==11.0.2
 msal-extensions==1.3.1
