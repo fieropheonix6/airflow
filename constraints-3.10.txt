@@ -1,6 +1,6 @@
 
 #
-# This constraints file was automatically generated on 2026-05-09T20:16:44.944328
+# This constraints file was automatically generated on 2026-05-10T02:02:28.849431
 # via `uv pip install --resolution highest` for the "main" branch of Airflow.
 # This variant of constraints install uses the HEAD of the branch version for 'apache-airflow' but installs
 # the providers from PIP-released packages at the moment of the constraint generation.
@@ -65,7 +65,7 @@ adal==1.2.7
 adbc-driver-manager==1.11.0
 adbc-driver-postgresql==1.11.0
 adbc-driver-sqlite==1.11.0
-adlfs==2026.4.0
+adlfs==2026.5.0
 aenum==3.1.17
 aiobotocore==3.6.0
 aiofiles==24.1.0
@@ -238,7 +238,7 @@ google-cloud-batch==0.21.0
 google-cloud-bigquery-datatransfer==3.22.0
 google-cloud-bigquery-storage==2.37.0
 google-cloud-bigquery==3.41.0
-google-cloud-bigtable==2.36.0
+google-cloud-bigtable==2.37.0
 google-cloud-build==3.36.0
 google-cloud-compute==1.47.0
 google-cloud-container==2.64.0
