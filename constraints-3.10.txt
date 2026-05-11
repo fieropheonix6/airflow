@@ -1,6 +1,6 @@
 
 #
-# This constraints file was automatically generated on 2026-05-10T20:21:35.738451
+# This constraints file was automatically generated on 2026-05-11T16:46:06.961322
 # via `uv pip install --resolution highest` for the "main" branch of Airflow.
 # This variant of constraints install uses the HEAD of the branch version for 'apache-airflow' but installs
 # the providers from PIP-released packages at the moment of the constraint generation.
@@ -179,7 +179,7 @@ curlify==3.0.0
 databricks-sql-connector==4.2.5
 dataclasses-json==0.6.7
 datadog==0.52.1
-db-dtypes==1.5.1
+db-dtypes==1.6.0
 debugpy==1.8.20
 decorator==5.2.1
 defusedxml==0.7.1
@@ -218,17 +218,17 @@ gcloud-aio-auth==5.4.4
 gcloud-aio-bigquery==7.1.0
 gcloud-aio-storage==9.6.4
 gcsfs==2026.4.0
-genai-prices==0.0.57
+genai-prices==0.0.59
 geomet==1.1.0
 gevent==26.4.0
 gitdb==4.0.12
 google-ads==30.1.0
-google-analytics-admin==0.28.0
+google-analytics-admin==0.29.0
 google-api-core==2.30.3
-google-api-python-client==2.195.0
-google-auth-httplib2==0.3.1
-google-auth-oauthlib==1.3.1
-google-auth==2.50.0
+google-api-python-client==2.196.0
+google-auth-httplib2==0.4.0
+google-auth-oauthlib==1.4.0
+google-auth==2.51.0
 google-cloud-aiplatform==1.148.1
 google-cloud-alloydb==0.9.0
 google-cloud-appengine-logging==1.9.0
@@ -236,35 +236,35 @@ google-cloud-audit-log==0.5.0
 google-cloud-automl==2.19.0
 google-cloud-batch==0.21.0
 google-cloud-bigquery-datatransfer==3.22.0
-google-cloud-bigquery-storage==2.37.0
+google-cloud-bigquery-storage==2.38.0
 google-cloud-bigquery==3.41.0
 google-cloud-bigtable==2.37.0
 google-cloud-build==3.36.0
 google-cloud-compute==1.47.0
 google-cloud-container==2.64.0
-google-cloud-core==2.5.1
+google-cloud-core==2.6.0
 google-cloud-datacatalog==3.30.0
 google-cloud-dataflow-client==0.13.0
 google-cloud-dataform==0.10.0
-google-cloud-dataplex==2.18.0
+google-cloud-dataplex==2.19.0
 google-cloud-dataproc-metastore==1.22.0
 google-cloud-dataproc==5.27.0
 google-cloud-dlp==3.36.0
-google-cloud-kms==3.12.0
+google-cloud-kms==3.13.0
 google-cloud-language==2.20.0
 google-cloud-logging==3.15.0
 google-cloud-managedkafka==0.4.0
 google-cloud-memcache==1.15.0
 google-cloud-monitoring==2.30.0
-google-cloud-orchestration-airflow==1.20.0
-google-cloud-os-login==2.20.0
-google-cloud-pubsub==2.37.0
+google-cloud-orchestration-airflow==1.21.0
+google-cloud-os-login==2.21.0
+google-cloud-pubsub==2.38.0
 google-cloud-redis==2.21.0
 google-cloud-resource-manager==1.17.0
 google-cloud-run==0.16.0
-google-cloud-secret-manager==2.27.0
-google-cloud-spanner==3.65.0
-google-cloud-speech==2.38.0
+google-cloud-secret-manager==2.28.0
+google-cloud-spanner==3.66.0
+google-cloud-speech==2.39.0
 google-cloud-storage-control==1.11.0
 google-cloud-storage-transfer==1.20.0
 google-cloud-storage==3.10.1
@@ -272,12 +272,12 @@ google-cloud-tasks==2.22.0
 google-cloud-texttospeech==2.36.0
 google-cloud-translate==3.26.0
 google-cloud-videointelligence==2.19.0
-google-cloud-vision==3.13.0
-google-cloud-workflows==1.21.0
+google-cloud-vision==3.14.0
+google-cloud-workflows==1.22.0
 google-crc32c==1.8.0
 google-genai==1.75.0
-google-resumable-media==2.8.2
-googleapis-common-protos==1.74.0
+google-resumable-media==2.9.0
+googleapis-common-protos==1.75.0
 graphviz==0.21
 greenback==1.3.0
 greenlet==3.5.0
@@ -330,9 +330,9 @@ jiter==0.14.0
 jmespath==1.1.0
 joblib==1.5.3
 joserfc==1.6.5
-jpype1==1.7.0
+jpype1==1.7.1
 jsonpath-ng==1.8.0
-jsonpath-python==1.1.5
+jsonpath-python==1.1.6
 jsonschema-specifications==2025.9.1
 jsonschema==4.26.0
 jupyter_client==8.8.0
@@ -355,11 +355,11 @@ logfire-api==4.32.1
 looker_sdk==26.6.1
 lxml==6.0.2
 lz4==4.4.5
-markdown-it-py==4.1.0
+markdown-it-py==4.2.0
 marshmallow-sqlalchemy==1.5.0
 marshmallow==3.26.2
 matplotlib-inline==0.2.1
-mdit-py-plugins==0.5.0
+mdit-py-plugins==0.6.0
 mdurl==0.1.2
 memray==1.19.3
 mergedeep==1.3.4
@@ -393,7 +393,7 @@ neo4j==6.2.0
 nest-asyncio==1.6.0
 numpy==2.2.6
 oauthlib==3.3.1
-openai==2.35.0
+openai==2.35.1
 opencensus-context==0.1.3
 opencensus==0.11.4
 openlineage-integration-common==1.46.0
@@ -433,7 +433,7 @@ pendulum==3.2.0
 pexpect==4.9.0
 pgvector==0.4.2
 pinecone==9.0.0
-pinotdb==9.1.1
+pinotdb==5.7.0
 platformdirs==4.9.6
 pluggy==1.6.0
 polars-runtime-32==1.40.1
@@ -444,7 +444,7 @@ prison==0.2.1
 prometheus_client==0.25.0
 prompt_toolkit==3.0.52
 propcache==0.4.1
-proto-plus==1.27.2
+proto-plus==1.28.0
 protobuf==6.33.6
 psutil==7.2.2
 psycopg2-binary==2.9.12
@@ -460,9 +460,9 @@ pybreaker==1.4.1
 pycountry==26.2.16
 pycparser==3.0
 pycryptodome==3.23.0
-pydantic-ai-slim==1.90.0
+pydantic-ai-slim==1.91.0
 pydantic-extra-types==2.11.1
-pydantic-graph==1.90.0
+pydantic-graph==1.91.0
 pydantic-settings==2.14.0
 pydantic==2.13.4
 pydantic_core==2.46.4
@@ -494,7 +494,7 @@ python-telegram-bot==22.7
 python3-saml==1.16.0
 pytokens==0.4.1
 pytz==2026.2
-pyvespa==1.1.2
+pyvespa==1.2.0
 pywinrm==0.5.0
 pyzmq==27.1.0
 qdrant-client==1.17.1
@@ -537,13 +537,13 @@ smbprotocol==1.16.1
 smmap==5.0.3
 sniffio==1.3.1
 snowflake-connector-python==4.4.0
-snowflake-snowpark-python==1.50.0
+snowflake-snowpark-python==1.50.1
 snowflake-sqlalchemy==1.9.0
 sortedcontainers==2.4.0
 soupsieve==2.8.3
 spython==0.3.14
-sqlalchemy-bigquery==1.16.0
-sqlalchemy-spanner==1.17.3
+sqlalchemy-bigquery==1.17.0
+sqlalchemy-spanner==1.18.0
 sqlalchemy_drill==1.1.10
 sqlparse==0.5.5
 stack-data==0.6.3
@@ -584,9 +584,9 @@ tzlocal==5.3.1
 uc-micro-py==2.0.0
 universal_pathlib==0.3.10
 uritemplate==4.2.0
-urllib3==2.6.3
+urllib3==2.7.0
 uuid6==2025.0.1
-uv==0.11.12
+uv==0.11.13
 uvicorn==0.46.0
 uvloop==0.22.1
 validators==0.35.0
