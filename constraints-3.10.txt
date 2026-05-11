@@ -1,6 +1,6 @@
 
 #
-# This constraints file was automatically generated on 2026-05-11T16:46:06.961322
+# This constraints file was automatically generated on 2026-05-11T21:25:45.565925
 # via `uv pip install --resolution highest` for the "main" branch of Airflow.
 # This variant of constraints install uses the HEAD of the branch version for 'apache-airflow' but installs
 # the providers from PIP-released packages at the moment of the constraint generation.
@@ -228,7 +228,7 @@ google-api-core==2.30.3
 google-api-python-client==2.196.0
 google-auth-httplib2==0.4.0
 google-auth-oauthlib==1.4.0
-google-auth==2.51.0
+google-auth==2.52.0
 google-cloud-aiplatform==1.148.1
 google-cloud-alloydb==0.9.0
 google-cloud-appengine-logging==1.9.0
@@ -238,7 +238,7 @@ google-cloud-batch==0.21.0
 google-cloud-bigquery-datatransfer==3.22.0
 google-cloud-bigquery-storage==2.38.0
 google-cloud-bigquery==3.41.0
-google-cloud-bigtable==2.37.0
+google-cloud-bigtable==2.38.0
 google-cloud-build==3.36.0
 google-cloud-compute==1.47.0
 google-cloud-container==2.64.0
@@ -393,7 +393,7 @@ neo4j==6.2.0
 nest-asyncio==1.6.0
 numpy==2.2.6
 oauthlib==3.3.1
-openai==2.35.1
+openai==2.36.0
 opencensus-context==0.1.3
 opencensus==0.11.4
 openlineage-integration-common==1.46.0
@@ -607,7 +607,7 @@ xmltodict==1.0.4
 yandex-query-client==0.1.4
 yandexcloud==0.389.0
 yarl==1.23.0
-ydb-dbapi==0.1.20
+ydb-dbapi==0.1.21
 ydb==3.28.4
 zeep==4.3.2
 zenpy==2.0.57
