@@ -1,6 +1,6 @@
 
 #
-# This constraints file was automatically generated on 2026-05-19T05:18:36.572012
+# This constraints file was automatically generated on 2026-05-20T07:23:50.699467
 # via `uv pip install --resolution highest` for the "main" branch of Airflow.
 # This variant of constraints install uses the HEAD of the branch version for 'apache-airflow' but installs
 # the providers from PIP-released packages at the moment of the constraint generation.
@@ -218,7 +218,7 @@ gcloud-aio-auth==5.4.4
 gcloud-aio-bigquery==7.1.0
 gcloud-aio-storage==9.6.4
 gcsfs==2026.4.0
-genai-prices==0.0.59
+genai-prices==0.0.60
 geomet==1.1.0
 gevent==26.4.0
 gitdb==4.0.12
@@ -228,7 +228,7 @@ google-api-core==2.30.3
 google-api-python-client==2.196.0
 google-auth-httplib2==0.4.0
 google-auth-oauthlib==1.4.0
-google-auth==2.52.0
+google-auth==2.53.0
 google-cloud-aiplatform==1.148.1
 google-cloud-alloydb==0.9.0
 google-cloud-appengine-logging==1.9.0
@@ -303,7 +303,7 @@ httplib2==0.31.2
 httpr==0.4.8
 httptools==0.7.1
 httpx==0.28.1
-huggingface_hub==1.14.0
+huggingface_hub==1.15.0
 humanize==4.15.0
 hvac==2.4.0
 hyperframe==6.1.0
@@ -324,7 +324,7 @@ isodate==0.7.2
 itsdangerous==2.2.0
 jaraco.classes==3.4.0
 jaraco.context==6.1.2
-jaraco.functools==4.4.0
+jaraco.functools==4.5.0
 jedi==0.20.0
 jeepney==0.9.0
 jiter==0.14.0
@@ -394,7 +394,7 @@ neo4j==6.2.0
 nest-asyncio==1.6.0
 numpy==2.2.6
 oauthlib==3.3.1
-openai==2.36.0
+openai==2.37.0
 opencensus-context==0.1.3
 opencensus==0.11.4
 openlineage-integration-common==1.47.1
@@ -461,9 +461,9 @@ pybreaker==1.4.1
 pycountry==26.2.16
 pycparser==3.0
 pycryptodome==3.23.0
-pydantic-ai-slim==1.96.1
+pydantic-ai-slim==1.97.0
 pydantic-extra-types==2.11.1
-pydantic-graph==1.96.1
+pydantic-graph==1.97.0
 pydantic-settings==2.14.1
 pydantic==2.13.4
 pydantic_core==2.46.4
@@ -488,7 +488,7 @@ python-dotenv==1.2.2
 python-http-client==3.3.7
 python-jenkins==1.8.3
 python-keycloak==7.1.1
-python-ldap==3.4.6
+python-ldap==3.4.5
 python-multipart==0.0.28
 python-slugify==8.0.4
 python-telegram-bot==22.7
@@ -587,7 +587,7 @@ universal_pathlib==0.3.10
 uritemplate==4.2.0
 urllib3==2.7.0
 uuid6==2025.0.1
-uv==0.11.14
+uv==0.11.15
 uvicorn==0.47.0
 uvloop==0.22.1
 validators==0.35.0
