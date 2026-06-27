@@ -1,6 +1,6 @@
 
 #
-# This constraints file was automatically generated on 2026-06-24T09:42:41.901855
+# This constraints file was automatically generated on 2026-06-27T03:25:25.180222
 # via `uv pip install --resolution highest` for the "main" branch of Airflow.
 # This variant of constraints install uses the HEAD of the branch version for 'apache-airflow' but installs
 # the providers from PIP-released packages at the moment of the constraint generation.
@@ -75,9 +75,9 @@ aiohttp==3.14.1
 aioitertools==0.13.0
 aiomysql==0.3.2
 aiosignal==1.4.0
-aiosmtplib==5.1.1
+aiosmtplib==5.1.2
 aiosqlite==0.21.0
-airbyte-api==0.53.0
+airbyte-api==1.0.0
 akeyless==5.0.28
 alembic==1.18.4
 alibabacloud-adb20211201==3.7.0
@@ -120,7 +120,7 @@ azure-datalake-store==0.0.53
 azure-identity==1.25.3
 azure-keyvault-secrets==4.11.0
 azure-kusto-data==6.0.4
-azure-mgmt-compute==38.0.0
+azure-mgmt-compute==38.1.0
 azure-mgmt-containerinstance==10.1.0
 azure-mgmt-containerregistry==15.0.0
 azure-mgmt-core==1.6.0
@@ -140,6 +140,7 @@ azure-synapse-artifacts==0.22.0
 azure-synapse-spark==0.7.0
 babel==2.18.0
 backoff==2.2.1
+backports-datetime-fromisoformat==2.0.3
 backports.strenum==1.3.1
 backports.tarfile==1.2.0
 bcrypt==5.0.0
@@ -181,7 +182,6 @@ croniter==6.2.2
 cryptography==48.0.1
 curlify==3.0.0
 databricks-sql-connector==4.2.5
-dataclasses-json==0.6.7
 datadog==0.52.1
 db-dtypes==1.7.0
 debugpy==1.8.21
@@ -241,8 +241,8 @@ google-cloud-automl==2.20.0
 google-cloud-batch==0.22.0
 google-cloud-bigquery-datatransfer==3.23.0
 google-cloud-bigquery-storage==2.39.0
-google-cloud-bigquery==3.42.0
-google-cloud-bigtable==2.38.0
+google-cloud-bigquery==3.42.1
+google-cloud-bigtable==2.39.0
 google-cloud-build==3.37.0
 google-cloud-compute==1.48.0
 google-cloud-container==2.65.0
@@ -253,31 +253,31 @@ google-cloud-dataform==0.11.0
 google-cloud-dataplex==2.20.0
 google-cloud-dataproc-metastore==1.23.0
 google-cloud-dataproc==5.28.0
-google-cloud-dlp==3.37.0
-google-cloud-kms==3.13.0
-google-cloud-language==2.20.0
+google-cloud-dlp==3.38.0
+google-cloud-kms==3.14.0
+google-cloud-language==2.21.0
 google-cloud-logging==3.16.0
-google-cloud-managedkafka==0.4.0
-google-cloud-memcache==1.15.0
+google-cloud-managedkafka==0.4.1
+google-cloud-memcache==1.16.0
 google-cloud-monitoring==2.31.0
-google-cloud-orchestration-airflow==1.21.0
-google-cloud-os-login==2.21.0
+google-cloud-orchestration-airflow==1.22.0
+google-cloud-os-login==2.22.0
 google-cloud-pubsub==2.39.0
-google-cloud-redis==2.21.0
-google-cloud-resource-manager==1.17.0
-google-cloud-run==0.16.0
+google-cloud-redis==2.22.0
+google-cloud-resource-manager==1.18.0
+google-cloud-run==0.16.1
 google-cloud-secret-manager==2.29.0
 google-cloud-spanner==3.68.0
 google-cloud-speech==2.40.0
 google-cloud-storage-control==1.12.0
 google-cloud-storage-transfer==1.21.0
 google-cloud-storage==3.12.0
-google-cloud-tasks==2.22.0
-google-cloud-texttospeech==2.36.0
-google-cloud-translate==3.26.0
-google-cloud-videointelligence==2.19.0
-google-cloud-vision==3.14.0
-google-cloud-workflows==1.22.0
+google-cloud-tasks==2.23.0
+google-cloud-texttospeech==2.37.0
+google-cloud-translate==3.27.0
+google-cloud-videointelligence==2.20.0
+google-cloud-vision==3.15.0
+google-cloud-workflows==1.23.0
 google-crc32c==1.8.0
 google-genai==1.75.0
 google-resumable-media==2.10.0
@@ -340,7 +340,6 @@ joblib==1.5.3
 joserfc==1.7.1
 jpype1==1.7.1
 jsonpath-ng==1.8.0
-jsonpath-python==1.1.6
 jsonschema-specifications==2025.9.1
 jsonschema==4.26.0
 jupyter_client==8.9.1
@@ -365,19 +364,19 @@ lxml==6.1.1
 lz4==4.4.5
 markdown-it-py==4.2.0
 marshmallow-sqlalchemy==1.5.0
-marshmallow==3.26.2
+marshmallow==4.3.0
 matplotlib-inline==0.2.2
 mdit-py-plugins==0.6.1
 mdurl==0.1.2
 memray==1.19.3
 mergedeep==1.3.4
 methodtools==0.4.7
-microsoft-kiota-abstractions==1.10.3
-microsoft-kiota-authentication-azure==1.10.3
-microsoft-kiota-http==1.10.3
-microsoft-kiota-serialization-json==1.10.3
-microsoft-kiota-serialization-text==1.10.3
-mistune==3.2.1
+microsoft-kiota-abstractions==1.11.5
+microsoft-kiota-authentication-azure==1.11.5
+microsoft-kiota-http==1.11.5
+microsoft-kiota-serialization-json==1.11.5
+microsoft-kiota-serialization-text==1.11.5
+mistune==3.3.2
 mmh3==5.2.1
 more-itertools==11.1.0
 msal-extensions==1.3.1
@@ -503,7 +502,7 @@ python-telegram-bot==22.8
 python3-saml==1.16.0
 pytokens==0.4.1
 pytz==2026.2
-pyvespa==1.2.1
+pyvespa==1.2.2
 pywinrm==0.5.0
 pyzmq==27.1.0
 qdrant-client==1.18.0
@@ -519,7 +518,7 @@ requests-oauthlib==2.0.0
 requests-toolbelt==1.0.0
 requests==2.34.2
 requests_ntlm==1.3.0
-retryhttp==1.4.0
+retryhttp==1.5.0
 rich-argparse==1.8.0
 rich-toolkit==0.20.1
 rich==13.9.4
@@ -547,7 +546,7 @@ smmap==5.0.3
 sniffio==1.3.1
 snowflake-connector-python==4.6.0
 snowflake-snowpark-python==1.52.0
-snowflake-sqlalchemy==1.10.1
+snowflake-sqlalchemy==1.10.2
 sortedcontainers==2.4.0
 soupsieve==2.8.4
 spython==0.3.14
@@ -587,7 +586,6 @@ typer==0.25.1
 types-protobuf==7.34.1.20260518
 types-pytz==2026.2.0.20260518
 types-requests==2.33.0.20260518
-typing-inspect==0.9.0
 typing-inspection==0.4.2
 typing_extensions==4.15.0
 tzdata==2026.2
@@ -612,11 +610,11 @@ webencodings==0.5.1
 websocket-client==1.8.0
 websockets==16.0
 wirerope==1.0.0
-wrapt==2.2.1
+wrapt==2.2.2
 xmlsec==1.3.17
 xmltodict==1.0.4
 yandex-query-client==0.1.4
-yandexcloud==0.395.0
+yandexcloud==0.396.0
 yarl==1.24.2
 ydb-dbapi==0.1.22
 ydb==3.29.4
