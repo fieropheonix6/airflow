@@ -1,6 +1,6 @@
 
 #
-# This constraints file was automatically generated on 2026-07-03T02:12:03.706544
+# This constraints file was automatically generated on 2026-07-03T14:43:16.698222
 # via `uv pip install --resolution highest` for the "main" branch of Airflow.
 # This variant of constraints install uses the HEAD of the branch version for 'apache-airflow' but installs
 # the providers from PIP-released packages at the moment of the constraint generation.
@@ -208,7 +208,7 @@ facebook_business==25.0.2
 fastapi-cli==0.0.27
 fastapi==0.136.3
 fastavro==1.12.2
-fastcore==1.13.7
+fastcore==1.13.8
 fastjsonschema==2.21.2
 fastuuid==0.14.0
 filelock==3.29.4
@@ -334,10 +334,10 @@ jaraco.context==6.1.2
 jaraco.functools==4.5.0
 jedi==0.20.0
 jeepney==0.9.0
-jiter==0.15.0
+jiter==0.16.0
 jmespath==1.1.0
 joblib==1.5.3
-joserfc==1.7.1
+joserfc==1.7.2
 jpype1==1.7.1
 jsonpath-ng==1.8.0
 jsonpath-python==1.1.6
@@ -591,7 +591,7 @@ typing-inspect==0.9.0
 typing-inspection==0.4.2
 typing_extensions==4.15.0
 tzdata==2026.2
-tzlocal==5.4.3
+tzlocal==5.4.4
 uc-micro-py==2.0.0
 universal_pathlib==0.3.10
 uritemplate==4.2.0
