@@ -1,6 +1,6 @@
 
 #
-# This constraints file was automatically generated on 2026-07-29T13:33:15.675839
+# This constraints file was automatically generated on 2026-07-30T02:06:56.294452
 # via `uv pip install --resolution highest` for the "main" branch of Airflow.
 # This variant of constraints install uses the HEAD of the branch version for 'apache-airflow' but installs
 # the providers from PIP-released packages at the moment of the constraint generation.
@@ -47,7 +47,7 @@ Jinja2==3.1.6
 Mako==1.3.12
 Markdown==3.10.2
 MarkupSafe==3.0.3
-PyAthena==3.35.2
+PyAthena==3.35.3
 PyGithub==2.9.1
 PyHive==0.7.0
 PyJWT==2.13.0
@@ -505,7 +505,7 @@ python-slugify==8.0.4
 python-telegram-bot==22.8
 python3-saml==1.16.0
 pytokens==0.4.1
-pytz==2026.3
+pytz==2026.3.post1
 pyvespa==1.2.4
 pywinrm==0.5.0
 pyzmq==27.1.0
@@ -534,7 +534,7 @@ s3transfer==0.19.2
 sagemaker_studio==1.0.26
 scikit-learn==1.5.2
 scipy==1.15.3
-scramp==1.4.13
+scramp==1.4.14
 scrapbook==0.5.0
 segment-analytics-python==2.3.6
 sendgrid==6.12.5
