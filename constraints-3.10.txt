@@ -1,6 +1,6 @@
 
 #
-# This constraints file was automatically generated on 2026-08-07T07:51:33.331258
+# This constraints file was automatically generated on 2026-08-08T03:43:40.819453
 # via `uv pip install --resolution highest` for the "main" branch of Airflow.
 # This variant of constraints install uses the HEAD of the branch version for 'apache-airflow' but installs
 # the providers from PIP-released packages at the moment of the constraint generation.
@@ -162,7 +162,7 @@ cassandra-driver==3.30.1
 cattrs==26.1.0
 celery==5.6.3
 certifi==2026.7.22
-cffi==2.1.0
+cffi==2.1.1
 chardet==7.4.3
 charset-normalizer==3.4.9
 ciso8601==2.3.3
@@ -210,7 +210,7 @@ facebook_business==25.0.3
 fastapi-cli==0.0.32
 fastapi==0.136.3
 fastavro==1.12.2
-fastcore==2.1.17
+fastcore==2.1.19
 fastjsonschema==2.22.1
 fastuuid==0.14.0
 filelock==3.32.2
@@ -299,9 +299,9 @@ grpcio==1.83.0
 gssapi==1.11.1
 gunicorn==26.0.0
 h11==0.16.0
-h2==4.4.0
+h2==4.4.1
 hdfs==2.7.3
-hf-xet==1.5.2
+hf-xet==1.6.0
 hmsclient==0.1.1
 hpack==4.2.0
 httpcore2==2.9.1
@@ -404,7 +404,7 @@ nest-asyncio2==1.7.2
 nest-asyncio==1.6.0
 numpy==2.2.6
 oauthlib==3.3.1
-openai==2.52.0
+openai==2.53.0
 opencensus-context==0.1.3
 opencensus==0.11.4
 openlineage-integration-common==1.52.0
@@ -472,9 +472,9 @@ pybreaker==1.4.1
 pycountry==26.2.16
 pycparser==3.0
 pycryptodome==3.23.0
-pydantic-ai-slim==2.22.0
+pydantic-ai-slim==2.23.0
 pydantic-extra-types==2.11.1
-pydantic-graph==2.22.0
+pydantic-graph==2.23.0
 pydantic-settings==2.14.2
 pydantic==2.13.4
 pydantic_core==2.46.4
@@ -513,7 +513,7 @@ qdrant-client==1.18.0
 ray==2.56.1
 reactivex==5.1.0
 redis==6.4.0
-redshift_connector==2.1.15
+redshift_connector==2.1.16
 referencing==0.37.0
 regex==2026.7.19
 requests-file==3.0.1
@@ -583,10 +583,10 @@ tomli==2.4.1
 tomlkit==0.15.1
 tornado==6.5.7
 tqdm==4.70.0
-traitlets==5.16.0
+traitlets==5.16.1
 trino==0.338.0
 truststore==0.10.4
-typer==0.27.0
+typer==0.27.1
 types-protobuf==7.34.1.20260518
 types-requests==2.33.0.20260712
 typing-inspection==0.4.2
@@ -617,7 +617,7 @@ wrapt==2.3.0
 xmlsec==1.3.17
 xmltodict==1.0.4
 yandex-query-client==0.1.4
-yandexcloud==0.401.0
+yandexcloud==0.402.0
 yarl==1.24.5
 ydb-dbapi==0.1.22
 ydb==3.31.2
