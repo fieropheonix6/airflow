@@ -1,6 +1,6 @@
 
 #
-# This constraints file was automatically generated on 2026-08-21T14:00:48.552507
+# This constraints file was automatically generated on 2026-08-21T22:53:27.162890
 # via `uv pip install --resolution highest` for the "main" branch of Airflow.
 # This variant of constraints install uses the HEAD of the branch version for 'apache-airflow' but installs
 # the providers from PIP-released packages at the moment of the constraint generation.
@@ -604,7 +604,7 @@ textual==8.2.8
 threadpoolctl==3.6.0
 thrift-sasl==0.4.3
 thrift==0.24.0
-tiktoken==0.13.0
+tiktoken==0.14.0
 tinycss2==1.5.1
 tokenizers==0.23.1
 tomli==2.4.1
