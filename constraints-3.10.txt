@@ -1,6 +1,6 @@
 
 #
-# This constraints file was automatically generated on 2026-08-26T05:00:01.819103
+# This constraints file was automatically generated on 2026-08-26T19:53:39.600664
 # via `uv pip install --resolution highest` for the "main" branch of Airflow.
 # This variant of constraints install uses the HEAD of the branch version for 'apache-airflow' but installs
 # the providers from PIP-released packages at the moment of the constraint generation.
@@ -91,7 +91,7 @@ alibabacloud-tea==0.4.3
 amqp==5.3.1
 annotated-doc==0.0.5
 annotated-types==0.8.0
-anthropic==1.0.0
+anthropic==0.125.0
 anyio==4.14.2
 apache-airflow-providers-amazon==9.35.0
 apache-airflow-providers-fab==3.8.0
