@@ -1,6 +1,6 @@
 
 #
-# This constraints file was automatically generated on 2026-09-16T22:53:16.106847
+# This constraints file was automatically generated on 2026-09-18T14:25:24.090586
 # via `uv pip install --resolution highest` for the "main" branch of Airflow.
 # This variant of constraints install uses the HEAD of the branch version for 'apache-airflow' but installs
 # the providers from PIP-released packages at the moment of the constraint generation.
@@ -195,6 +195,7 @@ dnspython==2.8.0
 docker==7.2.0
 docopt==0.6.2
 docstring_parser==0.18.0
+duckdb==1.5.5
 durationpy==0.11
 elastic-transport==9.4.2
 elasticsearch==9.5.1
@@ -208,7 +209,7 @@ facebook_business==26.0.1
 fastapi-cli==0.0.32
 fastapi==0.136.3
 fastavro==1.12.2
-fastcore==2.2.23
+fastcore==2.2.27
 fasteners==0.20
 fastjsonschema==2.22.2
 fastuuid==0.14.0
@@ -292,9 +293,9 @@ grpc-google-iam-v1==0.14.5
 grpc-interceptor==0.15.4
 grpcio-gcp==0.2.2
 grpcio-health-checking==1.81.1
-grpcio-status==1.83.1
+grpcio-status==1.84.0
 grpcio-tools==1.81.1
-grpcio==1.83.1
+grpcio==1.84.0
 gssapi==1.12.0
 gunicorn==26.2.0
 h11==0.16.0
@@ -303,12 +304,12 @@ hdfs==2.7.3
 hf-xet==1.6.0
 hmsclient==0.1.1
 hpack==4.2.0
-httpcore2==2.12.0
+httpcore2==2.13.0
 httpcore==1.0.9
 httplib2==0.32.0
 httpr==0.7.2
 httptools==0.8.0
-httpx2==2.12.0
+httpx2==2.13.0
 httpx==0.28.1
 huggingface_hub==1.31.0
 humanize==4.16.0
@@ -603,7 +604,7 @@ uritemplate==4.2.0
 urllib3==2.7.0
 uuid6==2025.0.1
 uv==0.12.13
-uvicorn==0.52.4
+uvicorn==0.53.0
 uvloop==0.22.1
 validators==0.35.0
 vertica-python==1.4.0
@@ -624,7 +625,7 @@ yandex-query-client==0.1.4
 yandexcloud==0.406.0
 yarl==1.24.5
 ydb-dbapi==0.1.23
-ydb==3.31.5
+ydb==3.32.0
 zeep==4.3.3
 zenpy==2.0.57
 zipp==4.1.0
