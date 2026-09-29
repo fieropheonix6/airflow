@@ -1,6 +1,6 @@
 
 #
-# This constraints file was automatically generated on 2026-09-28T19:30:46.417315
+# This constraints file was automatically generated on 2026-09-29T04:18:00.026712
 # via `uv pip install --resolution highest` for the "main" branch of Airflow.
 # This variant of constraints install uses the HEAD of the branch version for 'apache-airflow' but installs
 # the providers from PIP-released packages at the moment of the constraint generation.
@@ -234,6 +234,7 @@ cadwyn==7.0.0
 capi_param_builder_python==1.3.2
 cassandra-driver==3.30.1
 cattrs==26.2.0
+cbor2==6.1.4
 celery==5.6.3
 certifi==2026.7.22
 cffi==2.1.1
@@ -301,17 +302,17 @@ gcloud-aio-auth==5.5.0
 gcloud-aio-bigquery==7.1.0
 gcloud-aio-storage==9.6.4
 gcsfs==2026.8.1
-genai-prices==0.1.8
+genai-prices==0.1.9
 geomet==1.1.0
 gevent==26.9.0
 gitdb==4.0.12
 google-ads==33.0.0
 google-analytics-admin==0.30.1
-google-api-core==2.38.0
+google-api-core==2.39.0
 google-api-python-client==2.200.0
 google-auth-httplib2==0.4.2
 google-auth-oauthlib==1.4.1
-google-auth==2.58.0
+google-auth==2.58.1
 google-cloud-aiplatform==1.164.0
 google-cloud-alloydb==0.11.2
 google-cloud-appengine-logging==1.10.0
@@ -321,7 +322,7 @@ google-cloud-batch==0.22.3
 google-cloud-bigquery-datatransfer==3.23.0
 google-cloud-bigquery-storage==2.41.0
 google-cloud-bigquery==3.45.2
-google-cloud-bigtable==2.46.0
+google-cloud-bigtable==2.47.0
 google-cloud-build==3.39.0
 google-cloud-compute==1.54.0
 google-cloud-container==2.66.0
@@ -350,17 +351,17 @@ google-cloud-spanner==3.71.0
 google-cloud-speech==2.40.0
 google-cloud-storage-control==1.15.0
 google-cloud-storage-transfer==1.21.0
-google-cloud-storage==3.14.1
-google-cloud-tasks==2.24.0
+google-cloud-storage==3.15.0
+google-cloud-tasks==2.25.0
 google-cloud-texttospeech==2.37.0
 google-cloud-translate==3.27.0
 google-cloud-videointelligence==2.20.0
 google-cloud-vision==3.15.0
 google-cloud-workflows==1.23.0
-google-crc32c==1.8.0
+google-crc32c==1.9.0
 google-genai==2.25.0
 google-resumable-media==2.10.2
-googleapis-common-protos==1.75.3
+googleapis-common-protos==1.75.4
 graphviz==0.21
 greenback==1.3.0
 greenlet==3.5.6
@@ -373,6 +374,7 @@ grpcio-health-checking==1.81.1
 grpcio-status==1.84.0
 grpcio-tools==1.81.1
 grpcio==1.84.0
+grpclib==0.4.9
 gssapi==1.12.0
 gunicorn==26.2.0
 h11==0.16.0
@@ -461,6 +463,7 @@ microsoft-kiota-serialization-json==1.14.0
 microsoft-kiota-serialization-text==1.14.0
 mistune==3.3.4
 mmh3==5.3.0
+modal==1.5.5
 more-itertools==11.1.0
 msal-extensions==1.3.1
 msal==1.39.0
@@ -650,6 +653,7 @@ std-uritemplate==2.0.12
 strictyaml==1.7.3
 structlog==26.1.0
 svcs==26.2.0
+synchronicity==0.12.5
 tableauserverclient==0.41
 tabulate==0.10.0
 tenacity==9.1.4
@@ -664,6 +668,7 @@ thrift==0.24.0
 tiktoken==0.14.0
 tinycss2==1.5.1
 tokenizers==0.23.2
+toml==0.10.2
 tomli==2.4.1
 tomlkit==0.15.1
 tornado==6.5.10
@@ -672,8 +677,10 @@ traitlets==5.16.1
 trino==0.340.0
 truststore==0.10.4
 typer==0.27.2
+types-certifi==2021.10.8.3
 types-protobuf==7.35.1.20260906
 types-requests==2.33.0.20260906
+types-toml==0.10.8.20260518
 typing-inspection==0.4.4
 typing_extensions==4.16.0
 tzdata==2026.4
@@ -682,7 +689,7 @@ universal_pathlib==0.3.10
 uritemplate==4.2.0
 urllib3==2.7.0
 uuid6==2025.0.1
-uv==0.12.18
+uv==0.12.19
 uvicorn==0.53.0
 uvloop==0.22.1
 validators==0.35.0
